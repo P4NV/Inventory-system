@@ -4,11 +4,11 @@ export default function Sidebar () {
 
     const nav = [
         {title: 'Home', link: '/'},
-        {title: 'About', link: '*'},
+        {title: 'Inventory', link: '/inventory'},
         {title: 'Contact', link: '*'},
     ];
     return(
-        <div className='min-w-44 border-r-8 bg-gray-500'>
+        <div className='min-w-44 max-w-44 border-r-8 bg-gray-500'>
             <nav>
                 {nav.map((item) => (
                     <div key={item.title}>
