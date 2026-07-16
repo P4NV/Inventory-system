@@ -16,3 +16,12 @@ model Item {
 
   @@map("items")
 }
+
+model InventoryItem {
+  id        String   @id @default(uuid())
+  name      String
+  amount    Int
+  isInStock Boolean  @default(true)
+  addedAt   DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
