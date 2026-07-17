@@ -8,11 +8,11 @@ export class ItemsService {
   constructor(private readonly prisma: PrismaService) {}
 
   findAll() {
-    return this.prisma.item.findMany({ orderBy: { createdAt: 'desc' } });
+    return this.prisma.item.findMany({ orderBy: { addedAt: 'desc' } });
   }
 
   create(dto: CreateItemDto) {
-    return this.prisma.item.create({ data: { title: dto.title } });
+    return this.prisma.item.create({ data: dto });
   }
 
   async update(id: string, dto: UpdateItemDto) {

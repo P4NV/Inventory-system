@@ -10,18 +10,13 @@ datasource db {
 
 model Item {
   id        String   @id @default(uuid())
-  title     String
-  done      Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  @@map("items")
-}
-
-model InventoryItem {
-  id        String   @id @default(uuid())
   name      String
-  amount    Int
+  sku       String   @unique
+  amount    Int      @default(0)
+  price     Float    @default(0)
   isInStock Boolean  @default(true)
   addedAt   DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@map("items")
 }

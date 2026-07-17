@@ -1,10 +1,9 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { api, ApiError, type Item } from "@/lib/api";
+import { api, ApiError, type Item } from "@/lib/api.ts";
 
 export function SignalLog() {
   const [items, setItems] = useState<Item[]>([]);
-  const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,29 +14,6 @@ export function SignalLog() {
       .catch((err: ApiError) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
-
-  async function handleAdd(e: React.FormEvent) {
-    e.preventDefault();
-    const title = draft.trim();
-    if (!title) return;
-    setDraft("");
-    try {
-      const created = await api.createItem(title);
-      setItems((prev) => [created, ...prev]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save that signal");
-    }
-  }
-
-  async function handleToggle(item: Item) {
-    const next = { ...item, done: !item.done };
-    setItems((prev) => prev.map((i) => (i.id === item.id ? next : i)));
-    try {
-      await api.toggleItem(item.id, next.done);
-    } catch {
-      setItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
-    }
-  }
 
   async function handleDelete(id: string) {
     const prevItems = items;
@@ -58,21 +34,6 @@ export function SignalLog() {
         </span>
       </div>
 
-      <form onSubmit={handleAdd} className="mb-4 flex gap-2">
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Log a signal…"
-          className="flex-1 rounded-md border border-line bg-canvas px-3 py-2 text-sm text-ink placeholder:text-ink-soft/70 focus:border-accent"
-        />
-        <button
-          type="submit"
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-strong"
-        >
-          Add
-        </button>
-      </form>
-
       {error && (
         <p className="mb-3 rounded-md bg-warn/10 px-3 py-2 text-sm text-warn">
           {error} — start the API and refresh.
@@ -83,7 +44,7 @@ export function SignalLog() {
         <p className="text-sm text-ink-soft">Loading…</p>
       ) : items.length === 0 && !error ? (
         <p className="text-sm text-ink-soft">
-          No signals yet. Add one above — it's saved in Postgres.
+          No items yet. Add some on the inventory page.
         </p>
       ) : (
         <ul className="space-y-1">
@@ -98,24 +59,18 @@ export function SignalLog() {
                 transition={{ duration: 0.2 }}
                 className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-canvas"
               >
-                <button
-                  onClick={() => handleToggle(item)}
-                  aria-pressed={item.done}
-                  aria-label={item.done ? "Mark unresolved" : "Mark resolved"}
-                  className={`h-4 w-4 shrink-0 rounded border ${
-                    item.done ? "border-accent bg-accent" : "border-line"
+                <span
+                  className={`h-2 w-2 shrink-0 rounded-full ${
+                    item.isInStock ? "bg-accent" : "bg-ink-soft"
                   }`}
                 />
-                <span
-                  className={`flex-1 text-sm ${
-                    item.done ? "text-ink-soft line-through" : "text-ink"
-                  }`}
-                >
-                  {item.title}
+                <span className="flex-1 text-sm text-ink">{item.name}</span>
+                <span className="font-mono text-xs text-ink-soft">
+                  {item.sku}
                 </span>
                 <button
                   onClick={() => handleDelete(item.id)}
-                  aria-label="Delete signal"
+                  aria-label="Delete item"
                   className="text-ink-soft hover:text-warn"
                 >
                   ×

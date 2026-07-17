@@ -31,17 +31,37 @@ export type HealthStatus = {
 
 export type Item = {
   id: string;
-  title: string;
-  done: boolean;
-  createdAt: string;
+  name: string;
+  sku: string;
+  amount: number;
+  price: number;
+  isInStock: boolean;
+  addedAt: string;
+  updatedAt: string;
+};
+
+export type CreateItemInput = {
+  name: string;
+  sku: string;
+  amount: number;
+  price: number;
+  isInStock?: boolean;
+};
+
+export type UpdateItemInput = {
+  name?: string;
+  sku?: string;
+  amount?: number;
+  price?: number;
+  isInStock?: boolean;
 };
 
 export const api = {
   health: () => request<HealthStatus>("/health"),
   listItems: () => request<Item[]>("/items"),
-  createItem: (title: string) =>
-    request<Item>("/items", { method: "POST", body: JSON.stringify({ title }) }),
-  toggleItem: (id: string, done: boolean) =>
-    request<Item>(`/items/${id}`, { method: "PATCH", body: JSON.stringify({ done }) }),
+  createItem: (data: CreateItemInput) =>
+    request<Item>("/items", { method: "POST", body: JSON.stringify(data) }),
+  updateItem: (id: string, data: UpdateItemInput) =>
+    request<Item>(`/items/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteItem: (id: string) => request<void>(`/items/${id}`, { method: "DELETE" }),
 };
