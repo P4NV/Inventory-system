@@ -122,6 +122,7 @@ Returns all items, newest first.
     "sku": "WDG-001",
     "amount": 25,
     "price": 9.99,
+    "category": "electronics",
     "isInStock": true,
     "addedAt": "2026-07-17T...",
     "updatedAt": "2026-07-17T..."
@@ -144,14 +145,15 @@ Creates a new item. Returns `201`.
 
 **Optional:**
 
-| Field | Type | Default |
-|-------|------|---------|
-| `isInStock` | boolean | `true` |
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `category` | string | `"general"` | max 100 chars. Predefined: `general`, `electronics`, `furniture`, `clothing`, `food`, `tools`, `materials` |
+| `isInStock` | boolean | `true` | |
 
 **Example:**
 
 ```json
-{ "name": "Widget", "sku": "WDG-001", "amount": 25, "price": 9.99 }
+{ "name": "Widget", "sku": "WDG-001", "amount": 25, "price": 9.99, "category": "electronics" }
 ```
 
 **Validation errors (400):**
@@ -177,6 +179,7 @@ the fields you want to change.
 | `sku` | string |
 | `amount` | integer |
 | `price` | number |
+| `category` | string |
 | `isInStock` | boolean |
 
 **Example — toggle stock:**
@@ -185,10 +188,10 @@ the fields you want to change.
 { "isInStock": false }
 ```
 
-**Example — update price and quantity:**
+**Example — update category and price:**
 
 ```json
-{ "price": 7.50, "amount": 50 }
+{ "category": "furniture", "price": 49.99 }
 ```
 
 Returns `404` if the item doesn't exist.
@@ -209,6 +212,7 @@ model Item {
   sku       String   @unique
   amount    Int      @default(0)
   price     Float    @default(0)
+  category  String   @default("general")
   isInStock Boolean  @default(true)
   addedAt   DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -224,6 +228,7 @@ model Item {
 | `sku` | text | Stock keeping unit, unique index |
 | `amount` | integer | Current stock quantity |
 | `price` | double precision | Unit price |
+| `category` | text | Item category, defaults to `"general"` |
 | `isInStock` | boolean | Whether the item is considered in stock |
 | `addedAt` | timestamp(3) | When the record was created |
 | `updatedAt` | timestamp(3) | Auto-updated on every write |
@@ -277,15 +282,17 @@ inv-app/
         Inventory.tsx         Inventory CRUD page
         NotFound.tsx          404 (outside dashboard layout)
       components/
+        ui/
+          Modal.tsx           Reusable <dialog> modal component
         nav/
           Sidebar.tsx         NavLink-based sidebar (active state styling)
           Topbar.tsx          Top bar
         features/
           StackStatus.tsx     Health check display
           SignalLog.tsx       Read-only item list (home page demo)
-          InventoryManager.tsx  Full CRUD table (inventory page)
+          InventoryManager.tsx  CRUD table + popup add form (inventory page)
       lib/
-        api.ts                Typed fetch client, types, API methods
+        api.ts                Typed fetch client, types, API methods, CATEGORIES constant
 ```
 
 ---
@@ -425,19 +432,34 @@ into the page.
    ```prisma
    model Item {
      // ...existing fields...
-     category String @default("general")
+     weight Float @default(0)
    }
    ```
 2. Create a migration:
    ```bash
    cd backend
-   npx prisma migrate dev --name add_category
+   npx prisma migrate dev --name add_weight
    ```
    For existing rows, Prisma may ask for a default — provide one inline or
    create the migration manually with `--create-only` and write the SQL.
 3. Update `CreateItemDto` and `UpdateItemDto` with validation decorators.
 4. Update the `Item` type in `frontend/src/lib/api.ts`.
 5. Update any frontend components that display or edit the field.
+
+### Adding a category value
+
+Categories are defined in `frontend/src/lib/api.ts`:
+
+```ts
+export const CATEGORIES = [
+  "general", "electronics", "furniture", "clothing",
+  "food", "tools", "materials",
+] as const;
+```
+
+To add a new category, append a string to this array. The form dropdown and
+any component that reads `CATEGORIES` will pick it up automatically. No
+backend changes needed — the `category` column is a plain text field.
 
 ### Renaming a field
 

@@ -1,4 +1,13 @@
-import { IsBoolean, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class CreateItemDto {
   @IsString()
@@ -18,6 +27,11 @@ export class CreateItemDto {
   @IsNumber()
   @Min(0)
   price!: number;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  category?: string;
 
   @IsBoolean()
   @IsOptional()

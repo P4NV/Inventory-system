@@ -30,6 +30,7 @@ prisma/
     20260716074226_add_inventory_items/
     20260717000000_update_item_fields/
     20260717000001_add_missing_item_columns/
+    20260717000002_add_category/
     migration_lock.toml
 
 src/
@@ -51,7 +52,7 @@ src/
     items.controller.ts     GET/POST/PATCH/DELETE /items
     items.service.ts        CRUD logic with NotFoundException handling
     dto/
-      create-item.dto.ts    POST body: name, sku, amount, price, isInStock?
+      create-item.dto.ts    POST body: name, sku, amount, price, category?, isInStock?
       update-item.dto.ts    PATCH body: all fields optional
 ```
 
@@ -102,6 +103,9 @@ export class CreateItemDto {
   @IsNumber() @Min(0)
   price!: number;
 
+  @IsString() @IsOptional() @MaxLength(100)
+  category?: string;       // defaults to "general"
+
   @IsBoolean() @IsOptional()
   isInStock?: boolean;
 }
@@ -130,7 +134,7 @@ The service always checks `ensureExists` before update/delete and throws
 | `GET` | `/` | — | `200` | Server info + route listing |
 | `GET` | `/health` | — | `200` or `503` | DB connectivity check |
 | `GET` | `/items` | — | `200` | List all items (newest first) |
-| `POST` | `/items` | `{ name, sku, amount, price, isInStock? }` | `201` | Create item |
+| `POST` | `/items` | `{ name, sku, amount, price, category?, isInStock? }` | `201` | Create item |
 | `PATCH` | `/items/:id` | any subset of fields | `200` | Partial update |
 | `DELETE` | `/items/:id` | — | `204` | Delete item |
 
@@ -145,6 +149,7 @@ model Item {
   sku       String   @unique
   amount    Int      @default(0)
   price     Float    @default(0)
+  category  String   @default("general")
   isInStock Boolean  @default(true)
   addedAt   DateTime @default(now())
   updatedAt DateTime @updatedAt

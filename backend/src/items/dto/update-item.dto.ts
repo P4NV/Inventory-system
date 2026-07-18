@@ -21,6 +21,11 @@ export class UpdateItemDto {
   @Min(0)
   price?: number;
 
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  category?: string;
+
   @IsBoolean()
   @IsOptional()
   isInStock?: boolean;

@@ -34,17 +34,19 @@ src/
     NotFound.tsx                404 (outside dashboard layout)
 
   components/
+    ui/
+      Modal.tsx               Reusable <dialog> modal (open/close, backdrop, close button)
     nav/
-      Sidebar.tsx               NavLink-based sidebar, reads from config/navigation
-      Topbar.tsx                Top bar (user area, search, settings)
+      Sidebar.tsx             NavLink-based sidebar, reads from config/navigation
+      Topbar.tsx              Top bar (user area, search, settings)
     features/
-      StackStatus.tsx           Health check display (3-layer status cards)
-      SignalLog.tsx             Read-only item list (home page demo)
-      InventoryManager.tsx      Full CRUD table with form (inventory page)
+      StackStatus.tsx         Health check display (3-layer status cards)
+      SignalLog.tsx           Read-only item list (home page demo)
+      InventoryManager.tsx    CRUD table + popup add form with category selector
 
   lib/
-    api.ts                      Typed fetch client, types (Item, HealthStatus),
-                                API methods (listItems, createItem, updateItem, deleteItem)
+    api.ts                    Typed fetch client, types (Item, HealthStatus, Category),
+                              API methods, CATEGORIES constant
 ```
 
 ## Routing
@@ -101,11 +103,17 @@ import { api, type Item } from "@/lib/api";
 // List all items
 const items: Item[] = await api.listItems();
 
-// Create an item
-const created = await api.createItem({ name: "Widget", sku: "W-001", amount: 10, price: 9.99 });
+// Create an item with category
+const created = await api.createItem({
+  name: "Widget",
+  sku: "W-001",
+  amount: 10,
+  price: 9.99,
+  category: "electronics",
+});
 
 // Partial update
-const updated = await api.updateItem(id, { price: 7.50, isInStock: false });
+const updated = await api.updateItem(id, { price: 7.50, category: "tools" });
 
 // Delete
 await api.deleteItem(id);
@@ -136,6 +144,36 @@ Colors and fonts are defined in `src/index.css` via Tailwind's `@theme`:
 ```
 
 Override these to change the entire app's appearance.
+
+## Categories
+
+Item categories are defined as a constant array in `src/lib/api.ts`:
+
+```ts
+export const CATEGORIES = [
+  "general", "electronics", "furniture", "clothing",
+  "food", "tools", "materials",
+] as const;
+```
+
+The inventory form's `<select>` dropdown reads from this array. To add a new
+category, just append a string to `CATEGORIES` — no other changes needed.
+
+## Modal component
+
+`src/components/ui/Modal.tsx` wraps the native `<dialog>` element:
+
+```tsx
+import { Modal } from "@/components/ui/Modal";
+
+<Modal open={isOpen} onClose={() => setIsOpen(false)} title="Add item">
+  {/* form content */}
+</Modal>
+```
+
+- Uses `showModal()` / `close()` for proper focus trapping and backdrop
+- Clicking the backdrop or pressing Escape closes it
+- The `onClose` callback is fired on any close method
 
 ## Environment
 
