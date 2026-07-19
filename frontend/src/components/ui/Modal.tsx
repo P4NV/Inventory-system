@@ -24,21 +24,21 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
     <dialog
       ref={dialogRef}
       onClose={onClose}
-      className="w-full max-w-md rounded-lg border border-line bg-canvas-raised p-0 shadow-lg backdrop:bg-black/40"
+      className="w-full max-w-lg rounded-xl border border-line bg-canvas-raised p-0 shadow-2xl backdrop:bg-black/50 backdrop:backdrop-blur-sm"
     >
-      <div className="flex items-center justify-between border-b border-line px-5 py-3">
+      <div className="flex items-center justify-between border-b border-line px-6 py-4">
         <h2 className="font-display text-lg font-semibold text-ink">
           {title}
         </h2>
         <button
           onClick={onClose}
-          className="text-ink-soft hover:text-ink"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-ink-muted hover:bg-canvas-overlay hover:text-ink transition-colors"
           aria-label="Close"
         >
-          ×
+          ✕
         </button>
       </div>
-      <div className="p-5">{children}</div>
+      <div className="p-6">{children}</div>
     </dialog>
   );
 }

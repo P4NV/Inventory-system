@@ -1,9 +1,13 @@
 import { useState, useRef, useEffect } from "react";
-import { NavLink } from "react-router-dom";
+import { useNavigate, NavLink } from "react-router-dom";
+import { useAuth } from "@/lib/auth-context.tsx";
+import { User, Search, LogOut } from "lucide-react";
 
 export default function Topbar() {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -17,72 +21,55 @@ export default function Topbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
+  function handleSignOut() {
+    logout();
+    setOpen(false);
+    navigate("/login");
+  }
+
   return (
-    <header className="sticky top-0 z-10 flex h-12 w-full items-center justify-between gap-4 border-b border-line bg-canvas-raised/95 backdrop-blur supports-[backdrop-filter]:bg-canvas-raised/80 px-4">
-      {/* Left side - User dropdown (was Inventory title) */}
-      <div className="relative min-w-44" ref={dropdownRef}>
+    <header className="sticky top-0 z-10 flex h-14 w-full items-center justify-between gap-4 border-b border-line bg-canvas-raised/95 backdrop-blur supports-[backdrop-filter]:bg-canvas-raised/80 px-5">
+      <div className="relative" ref={dropdownRef}>
         <button
           onClick={() => setOpen(!open)}
-          className="flex items-center gap-2 rounded-full px-3 py-1.5 hover:bg-canvas-overlay transition-colors w-full justify-center sm:justify-start"
+          className="flex items-center gap-2.5 rounded-lg px-3 py-1.5 hover:bg-canvas-overlay transition-colors"
           aria-expanded={open}
           aria-haspopup="true"
         >
-          <div className="h-8 w-8 rounded-full bg-accent/10 flex items-center justify-center text-accent font-medium text-sm">
-            U
+          <div className="h-8 w-8 rounded-full bg-accent/10 flex items-center justify-center text-accent">
+            <User size={16} />
           </div>
-          <span className="hidden sm:block text-sm text-ink">User</span>
+          <span className="text-sm text-ink">{user?.name ?? user?.email ?? "User"}</span>
         </button>
         {open && (
-          <div className="absolute left-0 mt-2 min-w-48 rounded-md border border-line bg-canvas-raised shadow-lg overflow-hidden">
-            <NavLink
-              to="/login"
-              onClick={() => setOpen(false)}
-              className="block px-3 py-2 text-sm text-ink hover:bg-canvas-overlay"
+          <div className="absolute left-0 mt-2 min-w-48 rounded-lg border border-line bg-canvas-raised shadow-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-line">
+              <p className="text-sm font-medium text-ink">{user?.name ?? "User"}</p>
+              <p className="text-xs text-ink-muted truncate mt-0.5">{user?.email}</p>
+            </div>
+            <button
+              onClick={handleSignOut}
+              className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-warn hover:bg-canvas-overlay transition-colors"
             >
-              Sign In
-            </NavLink>
-            <NavLink
-              to="/register"
-              onClick={() => setOpen(false)}
-              className="block px-3 py-2 text-sm text-ink hover:bg-canvas-overlay"
-            >
-              Register
-            </NavLink>
-            <hr className="border-line my-1" />
-            <NavLink
-              to="/settings"
-              onClick={() => setOpen(false)}
-              className="block px-3 py-2 text-sm text-ink hover:bg-canvas-overlay"
-            >
-              Preferences
-            </NavLink>
-            <NavLink
-              to="/settings"
-              onClick={() => setOpen(false)}
-              className="block px-3 py-2 text-sm text-ink hover:bg-canvas-overlay"
-            >
-              Settings
-            </NavLink>
-            <hr className="border-line my-1" />
-            <button className="w-full text-left px-3 py-2 text-sm text-warn hover:bg-canvas-overlay">
+              <LogOut size={14} />
               Sign Out
             </button>
           </div>
         )}
       </div>
 
-      {/* Center - Search */}
-      <div className="flex-1 max-w-md">
+      <div className="flex-1 max-w-md relative">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
+
         <input
           type="search"
           placeholder="Search items..."
-          className="w-full rounded-md border border-line bg-canvas px-3 py-1.5 text-sm text-ink placeholder:text-ink-soft focus:border-accent focus:outline-none"
+          className="w-full rounded-lg border border-line bg-canvas pl-9 pr-3 py-2 text-sm text-ink placeholder:text-ink-muted focus:border-accent focus:outline-none transition-colors"
         />
       </div>
 
-      {/* Right side - Inventory title (was User) */}
-      <div className="flex items-center gap-4 min-w-44 justify-end">
-        <h1 className="text-sm font-medium text-ink">Inventory</h1>
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/10 text-accent">
+        <User size={16} />
       </div>
     </header>
   );

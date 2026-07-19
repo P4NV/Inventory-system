@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { motion, useReducedMotion } from "motion/react";
-import { api, setAuthToken } from "@/lib/api";
+import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context.tsx";
+import { LogIn, UserPlus, AlertCircle } from "lucide-react";
 
 interface AuthPageProps {
   mode: "login" | "register";
@@ -9,6 +11,7 @@ interface AuthPageProps {
 
 export function AuthPage({ mode }: AuthPageProps) {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const prefersReducedMotion = useReducedMotion();
   const isLogin = mode === "login";
 
@@ -46,7 +49,7 @@ export function AuthPage({ mode }: AuthPageProps) {
       } else {
         response = await api.register({ name: form.name, email: form.email, password: form.password });
       }
-      setAuthToken(response.token);
+      login(response.token, response.user);
       navigate("/dashboard");
     } catch (err: any) {
       setError(err.message || "Authentication failed");
@@ -56,15 +59,18 @@ export function AuthPage({ mode }: AuthPageProps) {
   };
 
   return (
-    <div className="min-h-dvh flex items-center justify-center px-4 py-12">
+    <div className="min-h-dvh flex items-center justify-center px-4 py-12 bg-canvas">
       <motion.div
         initial={prefersReducedMotion ? undefined : { opacity: 0, y: 20 }}
         animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="w-full max-w-md"
+        className="w-full max-w-sm"
       >
-        <div className="rounded-xl border border-line bg-canvas-raised p-8">
+        <div className="rounded-xl border border-line bg-canvas-raised p-8 shadow-lg">
           <div className="text-center mb-8">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10">
+              {isLogin ? <LogIn size={22} className="text-accent" /> : <UserPlus size={22} className="text-accent" />}
+            </div>
             <h1 className="font-display text-2xl font-semibold text-ink">
               {isLogin ? "Welcome back" : "Create account"}
             </h1>
@@ -76,68 +82,69 @@ export function AuthPage({ mode }: AuthPageProps) {
           </div>
 
           {error && (
-            <div className="mb-6 rounded-md bg-error-soft px-3 py-2 text-sm text-error">
-              {error}
+            <div className="mb-6 flex items-center gap-2 rounded-lg bg-error-soft px-4 py-3 text-sm text-error">
+              <AlertCircle size={14} />
+              <span>{error}</span>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
               <div>
-                <label className="mb-1 block text-sm font-medium text-ink">Name</label>
+                <label className="mb-1.5 block text-sm font-medium text-ink">Name</label>
                 <input
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className={`w-full rounded-md border px-3 py-2 text-sm text-ink placeholder:text-ink-soft/70 focus:border-accent ${
-                    errors.name ? "border-error" : "border-line bg-canvas"
+                  className={`w-full rounded-lg border px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-muted focus:outline-none transition-colors ${
+                    errors.name ? "border-error" : "border-line bg-canvas focus:border-accent"
                   }`}
                   placeholder="John Doe"
                   autoComplete="name"
                 />
                 {errors.name && (
-                  <p className="mt-1 text-sm text-error">{errors.name}</p>
+                  <p className="mt-1.5 text-xs text-error">{errors.name}</p>
                 )}
               </div>
             )}
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-ink">Email</label>
+              <label className="mb-1.5 block text-sm font-medium text-ink">Email</label>
               <input
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className={`w-full rounded-md border px-3 py-2 text-sm text-ink placeholder:text-ink-soft/70 focus:border-accent ${
-                  errors.email ? "border-error" : "border-line bg-canvas"
+                className={`w-full rounded-lg border px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-muted focus:outline-none transition-colors ${
+                  errors.email ? "border-error" : "border-line bg-canvas focus:border-accent"
                 }`}
                 placeholder="john@example.com"
                 autoComplete="email"
               />
               {errors.email && (
-                <p className="mt-1 text-sm text-error">{errors.email}</p>
+                <p className="mt-1.5 text-xs text-error">{errors.email}</p>
               )}
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-ink">Password</label>
+              <label className="mb-1.5 block text-sm font-medium text-ink">Password</label>
               <input
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className={`w-full rounded-md border px-3 py-2 text-sm text-ink placeholder:text-ink-soft/70 focus:border-accent ${
-                  errors.password ? "border-error" : "border-line bg-canvas"
+                className={`w-full rounded-lg border px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-muted focus:outline-none transition-colors ${
+                  errors.password ? "border-error" : "border-line bg-canvas focus:border-accent"
                 }`}
                 placeholder="••••••••"
                 autoComplete={isLogin ? "current-password" : "new-password"}
               />
               {errors.password && (
-                <p className="mt-1 text-sm text-error">{errors.password}</p>
+                <p className="mt-1.5 text-xs text-error">{errors.password}</p>
               )}
             </div>
 
             {!isLogin && (
               <div>
-                <label className="mb-1 block text-sm font-medium text-ink">
+                <label className="mb-1.5 block text-sm font-medium text-ink">
                   Confirm Password
                 </label>
                 <input
@@ -146,14 +153,14 @@ export function AuthPage({ mode }: AuthPageProps) {
                   onChange={(e) =>
                     setForm({ ...form, confirmPassword: e.target.value })
                   }
-                  className={`w-full rounded-md border px-3 py-2 text-sm text-ink placeholder:text-ink-soft/70 focus:border-accent ${
-                    errors.confirmPassword ? "border-error" : "border-line bg-canvas"
+                  className={`w-full rounded-lg border px-3.5 py-2.5 text-sm text-ink placeholder:text-ink-muted focus:outline-none transition-colors ${
+                    errors.confirmPassword ? "border-error" : "border-line bg-canvas focus:border-accent"
                   }`}
                   placeholder="••••••••"
                   autoComplete="new-password"
                 />
                 {errors.confirmPassword && (
-                  <p className="mt-1 text-sm text-error">{errors.confirmPassword}</p>
+                  <p className="mt-1.5 text-xs text-error">{errors.confirmPassword}</p>
                 )}
               </div>
             )}
@@ -161,9 +168,9 @@ export function AuthPage({ mode }: AuthPageProps) {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-md bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-strong disabled:opacity-50"
+              className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-strong disabled:opacity-50 active:scale-[0.98]"
             >
-              {loading ? "Please wait..." : isLogin ? "Sign in" : "Create account"}
+              {loading ? "Please wait…" : isLogin ? "Sign in" : "Create account"}
             </button>
           </form>
 
@@ -171,7 +178,7 @@ export function AuthPage({ mode }: AuthPageProps) {
             {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
             <NavLink
               to={isLogin ? "/register" : "/login"}
-              className="font-medium text-accent hover:underline"
+              className="font-medium text-accent hover:text-accent-strong transition-colors"
             >
               {isLogin ? "Sign up" : "Sign in"}
             </NavLink>

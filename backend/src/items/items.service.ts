@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateItemDto } from './dto/create-item.dto';
 import { UpdateItemDto } from './dto/update-item.dto';
@@ -11,8 +11,15 @@ export class ItemsService {
     return this.prisma.item.findMany({ orderBy: { addedAt: 'desc' } });
   }
 
-  create(dto: CreateItemDto) {
-    return this.prisma.item.create({ data: dto });
+  async create(dto: CreateItemDto) {
+    try {
+      return await this.prisma.item.create({ data: dto });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        throw new ConflictException(`An item with SKU "${dto.sku}" already exists`);
+      }
+      throw err;
+    }
   }
 
   async update(id: string, dto: UpdateItemDto) {

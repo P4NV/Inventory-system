@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import { motion, useReducedMotion } from "motion/react";
 import { api, type Item } from "@/lib/api";
 import { useEffect, useState } from "react";
+import { Package, DollarSign, CheckCircle2, XCircle, BarChart3, ClipboardList, Activity } from "lucide-react";
 
 interface Stats {
   totalItems: number;
@@ -15,15 +16,15 @@ interface Stats {
 const LOW_STOCK_THRESHOLD = 10;
 
 const statCards = [
-  { key: "totalItems", label: "Total Items", icon: "📦", accent: "text-accent" },
-  { key: "totalValue", label: "Total Value", icon: "💰", accent: "text-emerald-500" },
-  { key: "inStock", label: "In Stock", icon: "✅", accent: "text-emerald-500" },
-  { key: "outOfStock", label: "Out of Stock", icon: "❌", accent: "text-warn" },
+  { key: "totalItems", label: "Total Items", icon: Package, accent: "text-accent" },
+  { key: "totalValue", label: "Total Value", icon: DollarSign, accent: "text-emerald-400" },
+  { key: "inStock", label: "In Stock", icon: CheckCircle2, accent: "text-emerald-400" },
+  { key: "outOfStock", label: "Out of Stock", icon: XCircle, accent: "text-warn" },
 ];
 
 const navCards = [
-  { title: "Dashboard", path: "/dashboard", description: "Analytics & overview", icon: "📊", accent: "border-accent hover:border-accent/50" },
-  { title: "Inventory", path: "/inventory", description: "Manage stock & items", icon: "📋", accent: "border-emerald-500 hover:border-emerald-500/50" },
+  { title: "Dashboard", path: "/dashboard", description: "Analytics & overview", icon: BarChart3, accent: "border-accent hover:border-accent/50" },
+  { title: "Inventory", path: "/inventory", description: "Manage stock & items", icon: ClipboardList, accent: "border-emerald-500 hover:border-emerald-500/50" },
 ];
 
 export function Home() {
@@ -82,42 +83,45 @@ export function Home() {
         className="mb-10"
       >
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {statCards.map((card, i) => (
-            <motion.article
-              key={card.key}
-              initial={prefersReducedMotion ? undefined : { opacity: 0, y: 12 }}
-              animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.15 + i * 0.05 }}
-              className="rounded-xl border border-line bg-canvas-raised p-6 transition-shadow hover:shadow-md"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-ink-soft">{card.label}</p>
-                  <p className="mt-2 font-display text-3xl font-semibold tabular-nums {card.accent}">
-                    {loading ? (
-                      <span className="animate-pulse bg-line h-8 w-24 inline-block rounded" />
-                    ) : card.key === "totalValue" ? (
-                      formatValue(stats[card.key as keyof Stats] as number)
-                    ) : (
-                      (stats[card.key as keyof Stats] as number).toLocaleString()
-                    )}
-                  </p>
+          {statCards.map((card, i) => {
+            const Icon = card.icon;
+            return (
+              <motion.article
+                key={card.key}
+                initial={prefersReducedMotion ? undefined : { opacity: 0, y: 12 }}
+                animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.15 + i * 0.05 }}
+                className="rounded-xl border border-line bg-canvas-raised p-6 transition-shadow hover:shadow-md"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm text-ink-soft">{card.label}</p>
+                    <p className={`mt-2 font-display text-3xl font-semibold tabular-nums ${card.accent}`}>
+                      {loading ? (
+                        <span className="animate-pulse bg-line h-8 w-24 inline-block rounded" />
+                      ) : card.key === "totalValue" ? (
+                        formatValue(stats[card.key as keyof Stats] as number)
+                      ) : (
+                        (stats[card.key as keyof Stats] as number).toLocaleString()
+                      )}
+                    </p>
+                  </div>
+                  <Icon size={24} className="text-ink-muted" />
                 </div>
-                <span className="text-3xl" aria-hidden="true">{card.icon}</span>
-              </div>
-              {card.key === "inStock" && stats.totalItems > 0 && (
-                <div className="mt-4 h-2 rounded-full bg-line overflow-hidden">
-                  <motion.div
-                    initial={false}
-                    animate={{ width: `${((stats.inStock / stats.totalItems) * 100).toFixed(0)}%` }}
-                    transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
-                    className="h-full bg-accent"
-                    style={{ width: `${((stats.inStock / stats.totalItems) * 100).toFixed(0)}%` }}
-                  />
-                </div>
-              )}
-            </motion.article>
-          ))}
+                {card.key === "inStock" && stats.totalItems > 0 && (
+                  <div className="mt-4 h-2 rounded-full bg-line overflow-hidden">
+                    <motion.div
+                      initial={false}
+                      animate={{ width: `${((stats.inStock / stats.totalItems) * 100).toFixed(0)}%` }}
+                      transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
+                      className="h-full bg-accent"
+                      style={{ width: `${((stats.inStock / stats.totalItems) * 100).toFixed(0)}%` }}
+                    />
+                  </div>
+                )}
+              </motion.article>
+            );
+          })}
         </div>
       </motion.section>
 
@@ -138,34 +142,37 @@ export function Home() {
           )}
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          {navCards.map((card, i) => (
-            <motion.article
-              key={card.path}
-              initial={prefersReducedMotion ? undefined : { opacity: 0, y: 12 }}
-              animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.25 + i * 0.05 }}
-            >
-              <NavLink
-                to={card.path}
-                className={({ isActive }) =>
-                  `relative flex h-full items-center gap-4 rounded-xl border-2 bg-canvas-raised p-6 transition-all duration-200 ${
-                    isActive
-                      ? "border-accent bg-accent/5 shadow-md"
-                      : `border-line hover:border-accent/50 ${card.accent}`
-                  }`
-                }
+          {navCards.map((card, i) => {
+            const Icon = card.icon;
+            return (
+              <motion.article
+                key={card.path}
+                initial={prefersReducedMotion ? undefined : { opacity: 0, y: 12 }}
+                animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.25 + i * 0.05 }}
               >
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10 text-2xl" aria-hidden="true">
-                  {card.icon}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-display text-lg font-semibold text-ink truncate">{card.title}</h3>
-                  <p className="mt-1 text-sm text-ink-soft truncate">{card.description}</p>
-                </div>
-                <span className="text-ink-soft" aria-hidden="true">→</span>
-              </NavLink>
-            </motion.article>
-          ))}
+                <NavLink
+                  to={card.path}
+                  className={({ isActive }) =>
+                    `relative flex h-full items-center gap-4 rounded-xl border-2 bg-canvas-raised p-6 transition-all duration-200 ${
+                      isActive
+                        ? "border-accent bg-accent/5 shadow-md"
+                        : `border-line hover:border-accent/50 ${card.accent}`
+                    }`
+                  }
+                >
+                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10" aria-hidden="true">
+                    <Icon size={22} className="text-accent" />
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-display text-lg font-semibold text-ink truncate">{card.title}</h3>
+                    <p className="mt-1 text-sm text-ink-soft truncate">{card.description}</p>
+                  </div>
+                  <span className="text-ink-soft" aria-hidden="true">→</span>
+                </NavLink>
+              </motion.article>
+            );
+          })}
         </div>
       </motion.section>
 
@@ -183,7 +190,7 @@ export function Home() {
             </div>
             <div className="flex items-center gap-3">
               <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-accent/10 text-accent">
-                <span className="relative flex h-2 w-2 rounded-full bg-accent animate-pulse" />
+                <Activity size={16} />
               </span>
               <div>
                 <p className="text-sm font-medium text-ink">API Connected</p>

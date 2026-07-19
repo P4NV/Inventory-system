@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { api, ApiError, type Item } from "@/lib/api.ts";
+import { X } from "lucide-react";
 
 export function SignalLog() {
   const [items, setItems] = useState<Item[]>([]);

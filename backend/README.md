@@ -23,15 +23,9 @@ npm run format           # Prettier
 
 ```
 prisma/
-  schema.prisma            Data models (Item, InventoryItem)
+  schema.prisma            Data models (Item, User)
   config.ts                Prisma 7 config — holds DATABASE_URL for CLI commands
   migrations/              Versioned SQL migration files
-    20260715210910_init/
-    20260716074226_add_inventory_items/
-    20260717000000_update_item_fields/
-    20260717000001_add_missing_item_columns/
-    20260717000002_add_category/
-    migration_lock.toml
 
 src/
   main.ts                  Bootstrap: CORS, ValidationPipe, port
@@ -39,21 +33,108 @@ src/
   app.controller.ts        GET / — server info + route listing
 
   prisma/
-    prisma.module.ts        @Global module — every module gets PrismaService
-    prisma.service.ts       PrismaClient subclass using PrismaPg adapter
-                            Connects on init, disconnects on destroy
+    prisma.module.ts       @Global module — every module gets PrismaService
+    prisma.service.ts      PrismaClient subclass using PrismaPg adapter
+                           Connects on init, disconnects on destroy
 
   health/
-    health.module.ts
-    health.controller.ts    GET /health — runs SELECT 1, returns DB status
+    health.controller.ts   GET /health — runs SELECT 1, returns DB status
 
   items/
-    items.module.ts
-    items.controller.ts     GET/POST/PATCH/DELETE /items
-    items.service.ts        CRUD logic with NotFoundException handling
+    items.controller.ts    CRUD /items (POST/PATCH/DELETE guarded by JWT)
+    items.service.ts       CRUD logic with NotFoundException + ConflictException (duplicate SKU)
     dto/
-      create-item.dto.ts    POST body: name, sku, amount, price, category?, isInStock?
-      update-item.dto.ts    PATCH body: all fields optional
+      create-item.dto.ts   POST body validation
+      update-item.dto.ts   PATCH body validation (all optional)
+
+  auth/
+    auth.controller.ts     POST /auth/register, /login | GET /auth/me (JWT protected)
+    auth.service.ts        Registration (bcrypt hash), login (bcrypt compare), JWT generation
+    guards/
+      jwt-auth.guard.ts    Passport-based JWT guard
+    strategies/
+      jwt.strategy.ts      Extracts and validates Bearer tokens
+    dto/
+      auth.dto.ts          RegisterDto, LoginDto with class-validator decorators
+```
+
+## Authentication
+
+The backend uses **JWT (JSON Web Tokens)** for stateless authentication:
+
+- **Registration** — `POST /auth/register` hashes the password with bcrypt (10 rounds),
+  creates the user, and returns `{ user, token }`
+- **Login** — `POST /auth/login` validates credentials with bcrypt.compare and returns
+  `{ user, token }`
+- **Token format** — JWT with `sub` (user ID), `email`, `role`, expires in 7 days
+- **Validation** — `JwtStrategy` extracts the Bearer token, verifies the signature, and
+  calls `AuthService.validateUser()` to confirm the user still exists
+- **Protection** — `@UseGuards(JwtAuthGuard)` on write endpoints (`POST/PATCH/DELETE /items`)
+- **Secret** — `JWT_SECRET` environment variable is **required**. The backend throws at startup
+  if it's missing. No hardcoded fallback.
+
+### Auth flow
+
+```
+Client                    Backend
+  │                         │
+  ├─ POST /auth/login ─────→│
+  │                         ├─ bcrypt.compare(password, hash)
+  │                         ├─ JWT.sign({ sub, email, role })
+  │←──── { user, token } ──┤
+  │                         │
+  ├─ POST /items ──────────→│  (Authorization: Bearer <token>)
+  │                         ├─ JwtStrategy.validate()
+  │                         ├─ ItemsService.create()
+  │←──── 201 Created ──────┤
+```
+
+## API endpoints
+
+| Method | Path | Auth | Body | Status | Description |
+|--------|------|------|------|--------|-------------|
+| `GET` | `/` | — | — | `200` | Server info + route listing |
+| `GET` | `/health` | — | — | `200`/`503` | DB connectivity check |
+| `POST` | `/auth/register` | — | `{ email, password, name? }` | `201`/`409` | Register new user |
+| `POST` | `/auth/login` | — | `{ email, password }` | `200`/`401` | Authenticate user |
+| `GET` | `/auth/me` | JWT | — | `200`/`401` | Current user profile |
+| `GET` | `/items` | — | — | `200` | List all items (public) |
+| `POST` | `/items` | JWT | `{ name, sku, amount, price, category?, isInStock? }` | `201`/`409` | Create item |
+| `PATCH` | `/items/:id` | JWT | any subset of fields | `200`/`404` | Partial update |
+| `DELETE` | `/items/:id` | JWT | — | `204`/`404` | Delete item |
+
+## Data model
+
+### Item
+
+```prisma
+model Item {
+  id        String   @id @default(uuid())
+  name      String
+  sku       String   @unique
+  amount    Int      @default(0)
+  price     Float    @default(0)
+  category  String   @default("general")
+  isInStock Boolean  @default(true)
+  addedAt   DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("items")
+}
+```
+
+### User
+
+```prisma
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("user")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("users")
+}
 ```
 
 ## How each layer works
@@ -71,16 +152,8 @@ app.useGlobalPipes(new ValidationPipe({                  // runs on every reques
 
 ### `PrismaService` — Database client
 
-Extends `PrismaClient` with a `PrismaPg` adapter built from `DATABASE_URL`.
-Decorated with `@Global()` so every module can inject it without importing
-`PrismaModule` repeatedly.
-
-```ts
-constructor() {
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-  super({ adapter });
-}
-```
+Extends `PrismaClient` with a `PrismaPg` adapter. Decorated with `@Global()` so
+every module can inject it without importing `PrismaModule`.
 
 ### DTOs — Request validation
 
@@ -88,88 +161,13 @@ DTOs use `class-validator` decorators. The global `ValidationPipe` instantiates
 the DTO class from the request body and validates it before the controller
 method runs.
 
-```ts
-// create-item.dto.ts
-export class CreateItemDto {
-  @IsString() @IsNotEmpty() @MaxLength(200)
-  name!: string;
+### ItemsService — Business logic
 
-  @IsString() @IsNotEmpty() @MaxLength(50)
-  sku!: string;
-
-  @IsInt() @Min(0)
-  amount!: number;
-
-  @IsNumber() @Min(0)
-  price!: number;
-
-  @IsString() @IsOptional() @MaxLength(100)
-  category?: string;       // defaults to "general"
-
-  @IsBoolean() @IsOptional()
-  isInStock?: boolean;
-}
-```
-
-### Controller → Service → Prisma
-
-```
-Controller                  Service                   PrismaService
-─────────────              ─────────                 ─────────────
-findAll()          →       findAll()          →       prisma.item.findMany()
-create(dto)        →       create(dto)        →       prisma.item.create({ data: dto })
-update(id, dto)    →       ensureExists(id)   →       prisma.item.findUnique()
-               └→          update(id, dto)    →       prisma.item.update({ where: { id }, data: dto })
-remove(id)         →       ensureExists(id)   →       prisma.item.findUnique()
-               └→          remove(id)         →       prisma.item.delete({ where: { id } })
-```
-
-The service always checks `ensureExists` before update/delete and throws
-`NotFoundException` (404) if the item doesn't exist.
-
-## API endpoints
-
-| Method | Path | Body | Status | Description |
-|--------|------|------|--------|-------------|
-| `GET` | `/` | — | `200` | Server info + route listing |
-| `GET` | `/health` | — | `200` or `503` | DB connectivity check |
-| `GET` | `/items` | — | `200` | List all items (newest first) |
-| `POST` | `/items` | `{ name, sku, amount, price, category?, isInStock? }` | `201` | Create item |
-| `PATCH` | `/items/:id` | any subset of fields | `200` | Partial update |
-| `DELETE` | `/items/:id` | — | `204` | Delete item |
-
-## Data model
-
-### Item (active)
-
-```prisma
-model Item {
-  id        String   @id @default(uuid())
-  name      String
-  sku       String   @unique
-  amount    Int      @default(0)
-  price     Float    @default(0)
-  category  String   @default("general")
-  isInStock Boolean  @default(true)
-  addedAt   DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("items")
-}
-```
-
-### InventoryItem (migrated, no API yet)
-
-```prisma
-model InventoryItem {
-  id        String   @id @default(uuid())
-  name      String
-  amount    Int
-  isInStock Boolean  @default(true)
-  addedAt   DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-```
+- `findAll()` — returns items ordered by `addedAt` descending
+- `create()` — catches Prisma `P2002` (unique constraint) and throws `ConflictException` (409)
+- `update()` — checks item exists first (404 if not), then updates
+- `remove()` — checks item exists first (404 if not), then deletes
+- `ensureExists()` — private helper, throws `NotFoundException` if the item doesn't exist
 
 ## Adding a new resource
 
@@ -191,4 +189,10 @@ Copy `src/items/` as a starting template and rename inside.
 DATABASE_URL="postgresql://postgres:postgres@localhost:5433/appdb?schema=public"
 PORT=3000
 FRONTEND_URL="http://localhost:5173"
+JWT_SECRET="<generate-a-strong-random-key>"
+```
+
+`JWT_SECRET` is required. Generate one with:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```

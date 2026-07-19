@@ -1,25 +1,34 @@
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
-let authToken: string | null = null;
+const TOKEN_KEY = "inv_token";
 
-export function setAuthToken(token: string | null) {
-  authToken = token;
+export function getStoredToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
 }
 
-export function getAuthToken() {
-  return authToken;
+export function setStoredToken(token: string | null) {
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(TOKEN_KEY);
+  }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getStoredToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (authToken) {
-    headers.Authorization = `Bearer ${authToken}`;
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
 
   const res = await fetch(`${API_URL}${path}`, {
     headers,
     ...init,
   });
+
+  if (res.status === 401) {
+    setStoredToken(null);
+  }
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");

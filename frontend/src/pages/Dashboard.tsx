@@ -7,13 +7,20 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
-  Legend,
 } from "recharts";
 import { motion, useReducedMotion } from "motion/react";
 import { api, type Item } from "@/lib/api";
 import { useEffect, useState, useMemo } from "react";
+import { Package, DollarSign, CheckCircle2, FolderOpen, TrendingUp, HeartPulse } from "lucide-react";
 
-const CHART_COLORS = ["#4f46e5", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16"];
+const BAR_COLOR = "#73cefc";
+const CHART_THEME = {
+  grid: "#2d2d2f",
+  tick: "#7a7e85",
+  label: "#a8acb0",
+  tooltipBg: "#1c1c1e",
+  tooltipText: "#eff0f0",
+};
 
 interface CategoryStat {
   category: string;
@@ -74,7 +81,8 @@ export function Dashboard() {
         ...data,
         avgPrice: data.value / data.count,
       }))
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
   }, [items]);
 
   const monthlyData = useMemo<MonthlyStat[]>(() => {
@@ -101,9 +109,9 @@ export function Dashboard() {
     const outOfStock = items.length - inStock;
     const lowStock = items.filter((i) => i.isInStock && i.amount <= 10).length;
     return [
-      { name: "In Stock", value: inStock - lowStock, color: CHART_COLORS[1] },
-      { name: "Low Stock (≤10)", value: lowStock, color: CHART_COLORS[2] },
-      { name: "Out of Stock", value: outOfStock, color: CHART_COLORS[3] },
+      { name: "In Stock", value: inStock - lowStock, color: "#4ade80" },
+      { name: "Low Stock (≤10)", value: lowStock, color: "#f5a623" },
+      { name: "Out of Stock", value: outOfStock, color: "#ff6b6b" },
     ].filter((d) => d.value > 0);
   }, [items]);
 
@@ -114,12 +122,12 @@ export function Dashboard() {
   const avgPrice = totalItems > 0 ? totalValue / totalItems : 0;
 
   const kpiCards = [
-    { label: "Total Items", value: totalItems.toLocaleString(), icon: "📦", color: CHART_COLORS[0] },
-    { label: "Total Value", value: `$${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: "💰", color: CHART_COLORS[1] },
-    { label: "In Stock", value: `${inStockCount} / ${totalItems}`, icon: "✅", color: CHART_COLORS[2] },
-    { label: "Categories", value: categoriesCount.toLocaleString(), icon: "📂", color: CHART_COLORS[3] },
-    { label: "Avg Price/Item", value: `$${avgPrice.toFixed(2)}`, icon: "📊", color: CHART_COLORS[4] },
-    { label: "Stock Health", value: totalItems > 0 ? `${Math.round((inStockCount / totalItems) * 100)}%` : "0%", icon: "💚", color: CHART_COLORS[5] },
+    { label: "Total Items", value: totalItems.toLocaleString(), icon: Package, color: "#73cefc" },
+    { label: "Total Value", value: `$${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, icon: DollarSign, color: "#4ade80" },
+    { label: "In Stock", value: `${inStockCount} / ${totalItems}`, icon: CheckCircle2, color: "#4ade80" },
+    { label: "Categories", value: categoriesCount.toLocaleString(), icon: FolderOpen, color: "#f5a623" },
+    { label: "Avg Price/Item", value: `$${avgPrice.toFixed(2)}`, icon: TrendingUp, color: "#a78bfa" },
+    { label: "Stock Health", value: totalItems > 0 ? `${Math.round((inStockCount / totalItems) * 100)}%` : "0%", icon: HeartPulse, color: "#22d3ee" },
   ];
 
   if (loading) {
@@ -130,23 +138,16 @@ export function Dashboard() {
     );
   }
 
-  const tooltipFormatter = ((value: any, name?: string) => {
+  const tooltipFn = (value: number, name?: string) => {
     const v = typeof value === "number" ? value : 0;
-    const n = name ?? "";
-    return n === "count" || n === "items"
-      ? [v, n === "count" ? "Items" : "Items Added"]
-      : [`$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, n === "value" ? "Total Value" : "Total Value"];
-  }) as any;
+    return name === "value" || name === "totalValue"
+      ? [`$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, "Value"]
+      : [v, "Items"];
+  };
 
-  const valueTooltipFormatter = ((value: any) => {
-    const v = typeof value === "number" ? value : 0;
-    return [`$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, "Total Value"];
-  }) as any;
-
-  const countTooltipFormatter = ((value: any) => {
-    const v = typeof value === "number" ? value : 0;
-    return [v, "Items"];
-  }) as any;
+  const stockTooltipFn = (value: number) => {
+    return [typeof value === "number" ? value : 0, "Items"];
+  };
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
@@ -161,12 +162,6 @@ export function Dashboard() {
           <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-ink">Inventory Analytics</h1>
           <p className="mt-2 text-ink-soft">Real-time insights into your inventory performance</p>
         </div>
-        <div className="flex items-center gap-3 text-sm text-ink-soft">
-          <span className="relative flex h-6 w-6 items-center justify-center rounded-full bg-accent/10 text-accent">
-            <span className="relative flex h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-          </span>
-          <span>Live Data</span>
-        </div>
       </motion.header>
 
       <motion.section
@@ -175,28 +170,31 @@ export function Dashboard() {
         transition={{ duration: 0.4, delay: 0.1 }}
         className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
       >
-        {kpiCards.map((card, i) => (
-          <motion.article
-            key={card.label}
-            initial={prefersReducedMotion ? undefined : { opacity: 0, y: 16 }}
-            animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 + i * 0.05 }}
-            className="relative rounded-xl border border-line bg-canvas-raised p-5"
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="font-mono text-xs uppercase tracking-wider text-ink-soft">{card.label}</p>
-                <p className="mt-1 font-display text-2xl font-semibold text-ink tabular-nums" style={{ color: card.color }}>
-                  {card.value}
-                </p>
+        {kpiCards.map((card, i) => {
+          const Icon = card.icon;
+          return (
+            <motion.article
+              key={card.label}
+              initial={prefersReducedMotion ? undefined : { opacity: 0, y: 16 }}
+              animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.1 + i * 0.05 }}
+              className="relative rounded-xl border border-line bg-canvas-raised p-5"
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-mono text-xs uppercase tracking-wider text-ink-soft">{card.label}</p>
+                  <p className="mt-1 font-display text-2xl font-semibold text-ink tabular-nums" style={{ color: card.color }}>
+                    {card.value}
+                  </p>
+                </div>
+                <Icon size={20} className="text-ink-muted" />
               </div>
-              <span className="text-2xl" aria-hidden="true">{card.icon}</span>
-            </div>
-            <div className="absolute bottom-4 right-4 h-2 w-16 rounded-full bg-line">
-              <div className="h-full w-1/3 rounded-full" style={{ backgroundColor: card.color }} />
-            </div>
-          </motion.article>
-        ))}
+              <div className="absolute bottom-4 right-4 h-2 w-16 rounded-full bg-line">
+                <div className="h-full w-1/3 rounded-full" style={{ backgroundColor: card.color }} />
+              </div>
+            </motion.article>
+          );
+        })}
       </motion.section>
 
       <motion.section
@@ -205,131 +203,87 @@ export function Dashboard() {
         transition={{ duration: 0.4, delay: 0.2 }}
         className="grid gap-6 lg:grid-cols-2"
       >
-        <ChartCard title="Items by Category" subtitle="Distribution of inventory items across categories">
+        <ChartCard title="Items by Category" subtitle="Distribution of items across categories">
           <ResponsiveContainer width="100%" height={340}>
             <BarChart
               data={categoryData}
               layout="vertical"
-              margin={{ top: 10, right: 10, left: 0, bottom: 10 }}
+              margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+              <CartesianGrid stroke={CHART_THEME.grid} strokeDasharray="3 3" vertical={false} />
               <XAxis
                 type="number"
-                tick={{ fill: "#9ca3af", fontSize: 12, fontFamily: "inherit" }}
+                tick={{ fill: CHART_THEME.tick, fontSize: 12, fontFamily: "inherit" }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
                 type="category"
                 dataKey="category"
-                width={120}
-                tick={{ fill: "#6b7280", fontSize: 13, fontFamily: "inherit", fontWeight: 500 }}
+                width={100}
+                tick={{ fill: CHART_THEME.label, fontSize: 12, fontFamily: "inherit" }}
                 axisLine={false}
                 tickLine={false}
               />
               <Tooltip
+                cursor={{ fill: "rgba(255,255,255,0.04)" }}
                 contentStyle={{
-                  backgroundColor: "#1f2937",
+                  backgroundColor: CHART_THEME.tooltipBg,
                   border: "none",
                   borderRadius: "8px",
                   boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
-                  padding: "12px 16px",
+                  padding: "10px 14px",
                 }}
-                labelStyle={{ color: "#f3f4f6", fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}
-                formatter={tooltipFormatter}
-                itemStyle={{ padding: "4px 0" }}
-              />
-              <Legend
-                wrapperStyle={{ paddingTop: 8 }}
-                formatter={(value) => (value === "count" ? "Item Count" : "Total Value ($)")}
-                iconType="circle"
-                iconSize={8}
+                labelStyle={{ color: CHART_THEME.tooltipText, fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}
+                formatter={tooltipFn}
               />
               <Bar
                 dataKey="count"
-                name="Item Count"
-                fill={CHART_COLORS[0]}
+                fill={BAR_COLOR}
                 radius={[0, 4, 4, 0]}
-                maxBarSize={28}
-              >
-                {categoryData.map((_, i) => (
-                  <Cell key={`count-${i}`} fill={CHART_COLORS[0]} />
-                ))}
-              </Bar>
-              <Bar
-                dataKey="value"
-                name="Total Value"
-                fill={CHART_COLORS[1]}
-                radius={[0, 4, 4, 0]}
-                maxBarSize={28}
-              >
-                {categoryData.map((_, i) => (
-                  <Cell key={`value-${i}`} fill={CHART_COLORS[1]} />
-                ))}
-              </Bar>
+                maxBarSize={24}
+              />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Monthly Activity (Last 6 Months)" subtitle="Items added and total value by month">
+        <ChartCard title="Monthly Activity (Last 6 Months)" subtitle="Items added per month">
           <ResponsiveContainer width="100%" height={340}>
             <BarChart
               data={monthlyData}
-              margin={{ top: 10, right: 10, left: 0, bottom: 10 }}
+              margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+              <CartesianGrid stroke={CHART_THEME.grid} strokeDasharray="3 3" vertical={false} />
               <XAxis
                 dataKey="month"
-                tick={{ fill: "#6b7280", fontSize: 13, fontFamily: "inherit", fontWeight: 500 }}
+                tick={{ fill: CHART_THEME.label, fontSize: 12, fontFamily: "inherit", fontWeight: 500 }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
                 type="number"
-                tick={{ fill: "#9ca3af", fontSize: 12, fontFamily: "inherit" }}
+                tick={{ fill: CHART_THEME.tick, fontSize: 12, fontFamily: "inherit" }}
                 axisLine={false}
                 tickLine={false}
               />
               <Tooltip
+                cursor={{ fill: "rgba(255,255,255,0.04)" }}
                 contentStyle={{
-                  backgroundColor: "#1f2937",
+                  backgroundColor: CHART_THEME.tooltipBg,
                   border: "none",
                   borderRadius: "8px",
                   boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
-                  padding: "12px 16px",
+                  padding: "10px 14px",
                 }}
-                labelStyle={{ color: "#f3f4f6", fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}
-                formatter={tooltipFormatter}
-                itemStyle={{ padding: "4px 0" }}
-              />
-              <Legend
-                wrapperStyle={{ paddingTop: 8 }}
-                formatter={(value) => (value === "items" ? "Items Added" : "Total Value ($)")}
-                iconType="circle"
-                iconSize={8}
+                labelStyle={{ color: CHART_THEME.tooltipText, fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}
+                formatter={tooltipFn}
               />
               <Bar
                 dataKey="items"
-                name="Items Added"
-                fill={CHART_COLORS[0]}
+                fill={BAR_COLOR}
                 radius={[4, 4, 0, 0]}
-                maxBarSize={40}
-              >
-                {monthlyData.map((_, i) => (
-                  <Cell key={`items-${i}`} fill={CHART_COLORS[0]} />
-                ))}
-              </Bar>
-              <Bar
-                dataKey="value"
-                name="Total Value"
-                fill={CHART_COLORS[1]}
-                radius={[4, 4, 0, 0]}
-                maxBarSize={40}
-              >
-                {monthlyData.map((_, i) => (
-                  <Cell key={`value-${i}`} fill={CHART_COLORS[1]} />
-                ))}
-              </Bar>
+                maxBarSize={36}
+              />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -341,17 +295,17 @@ export function Dashboard() {
         transition={{ duration: 0.4, delay: 0.3 }}
         className="grid gap-6 lg:grid-cols-3"
       >
-        <ChartCard title="Stock Health Overview" subtitle="Current inventory status distribution">
+        <ChartCard title="Stock Health" subtitle="Current inventory status">
           <ResponsiveContainer width="100%" height={280}>
             <BarChart
               data={stockDistribution}
               layout="vertical"
-              margin={{ top: 10, right: 10, left: 0, bottom: 10 }}
+              margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+              <CartesianGrid stroke={CHART_THEME.grid} strokeDasharray="3 3" vertical={false} />
               <XAxis
                 type="number"
-                tick={{ fill: "#9ca3af", fontSize: 12, fontFamily: "inherit" }}
+                tick={{ fill: CHART_THEME.tick, fontSize: 12, fontFamily: "inherit" }}
                 axisLine={false}
                 tickLine={false}
               />
@@ -359,26 +313,26 @@ export function Dashboard() {
                 type="category"
                 dataKey="name"
                 width={100}
-                tick={{ fill: "#6b7280", fontSize: 13, fontFamily: "inherit", fontWeight: 500 }}
+                tick={{ fill: CHART_THEME.label, fontSize: 12, fontFamily: "inherit" }}
                 axisLine={false}
                 tickLine={false}
               />
               <Tooltip
+                cursor={{ fill: "rgba(255,255,255,0.04)" }}
                 contentStyle={{
-                  backgroundColor: "#1f2937",
+                  backgroundColor: CHART_THEME.tooltipBg,
                   border: "none",
                   borderRadius: "8px",
                   boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
-                  padding: "12px 16px",
+                  padding: "10px 14px",
                 }}
-                labelStyle={{ color: "#f3f4f6", fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}
-                formatter={countTooltipFormatter}
+                labelStyle={{ color: CHART_THEME.tooltipText, fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}
+                formatter={stockTooltipFn}
               />
               <Bar
                 dataKey="value"
-                fill={CHART_COLORS[1]}
                 radius={[0, 4, 4, 0]}
-                maxBarSize={32}
+                maxBarSize={24}
               >
                 {stockDistribution.map((d) => (
                   <Cell key={d.name} fill={d.color} />
@@ -388,96 +342,90 @@ export function Dashboard() {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Category Value Distribution" subtitle="Total inventory value by category">
+        <ChartCard title="Category Value" subtitle="Total inventory value by category">
           <ResponsiveContainer width="100%" height={280}>
             <BarChart
               data={categoryData.slice(0, 6)}
               layout="vertical"
-              margin={{ top: 10, right: 10, left: 0, bottom: 10 }}
+              margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+              <CartesianGrid stroke={CHART_THEME.grid} strokeDasharray="3 3" vertical={false} />
               <XAxis
                 type="number"
-                tick={{ fill: "#9ca3af", fontSize: 12, fontFamily: "inherit" }}
+                tick={{ fill: CHART_THEME.tick, fontSize: 12, fontFamily: "inherit" }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
                 type="category"
                 dataKey="category"
-                width={120}
-                tick={{ fill: "#6b7280", fontSize: 13, fontFamily: "inherit", fontWeight: 500 }}
+                width={100}
+                tick={{ fill: CHART_THEME.label, fontSize: 12, fontFamily: "inherit" }}
                 axisLine={false}
                 tickLine={false}
               />
               <Tooltip
+                cursor={{ fill: "rgba(255,255,255,0.04)" }}
                 contentStyle={{
-                  backgroundColor: "#1f2937",
+                  backgroundColor: CHART_THEME.tooltipBg,
                   border: "none",
                   borderRadius: "8px",
                   boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
-                  padding: "12px 16px",
+                  padding: "10px 14px",
                 }}
-                labelStyle={{ color: "#f3f4f6", fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}
-                formatter={valueTooltipFormatter}
+                labelStyle={{ color: CHART_THEME.tooltipText, fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}
+                formatter={tooltipFn}
               />
               <Bar
                 dataKey="value"
-                fill={CHART_COLORS[4]}
+                fill={BAR_COLOR}
                 radius={[0, 4, 4, 0]}
-                maxBarSize={36}
-              >
-                {categoryData.slice(0, 6).map((_, i) => (
-                  <Cell key={`top-${i}`} fill={CHART_COLORS[4]} />
-                ))}
-              </Bar>
+                maxBarSize={24}
+              />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Top Categories by Items" subtitle="Categories with most inventory items">
+        <ChartCard title="Top Categories by Items" subtitle="Categories with most items">
           <ResponsiveContainer width="100%" height={280}>
             <BarChart
               data={categoryData.slice(0, 6)}
               layout="vertical"
-              margin={{ top: 10, right: 10, left: 0, bottom: 10 }}
+              margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+              <CartesianGrid stroke={CHART_THEME.grid} strokeDasharray="3 3" vertical={false} />
               <XAxis
                 type="number"
-                tick={{ fill: "#9ca3af", fontSize: 12, fontFamily: "inherit" }}
+                tick={{ fill: CHART_THEME.tick, fontSize: 12, fontFamily: "inherit" }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
                 type="category"
                 dataKey="category"
-                width={120}
-                tick={{ fill: "#6b7280", fontSize: 13, fontFamily: "inherit", fontWeight: 500 }}
+                width={100}
+                tick={{ fill: CHART_THEME.label, fontSize: 12, fontFamily: "inherit" }}
                 axisLine={false}
                 tickLine={false}
               />
               <Tooltip
+                cursor={{ fill: "rgba(255,255,255,0.04)" }}
                 contentStyle={{
-                  backgroundColor: "#1f2937",
+                  backgroundColor: CHART_THEME.tooltipBg,
                   border: "none",
                   borderRadius: "8px",
                   boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
-                  padding: "12px 16px",
+                  padding: "10px 14px",
                 }}
-                labelStyle={{ color: "#f3f4f6", fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}
-                formatter={countTooltipFormatter}
+                labelStyle={{ color: CHART_THEME.tooltipText, fontSize: 13, fontWeight: 600, fontFamily: "inherit" }}
+                formatter={tooltipFn}
               />
               <Bar
                 dataKey="count"
-                fill={CHART_COLORS[5]}
+                fill={BAR_COLOR}
                 radius={[0, 4, 4, 0]}
-                maxBarSize={36}
-              >
-                {categoryData.slice(0, 6).map((_, i) => (
-                  <Cell key={`top-count-${i}`} fill={CHART_COLORS[5]} />
-                ))}
-              </Bar>
+                maxBarSize={24}
+              />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
