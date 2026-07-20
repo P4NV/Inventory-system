@@ -2874,6 +2874,54 @@
         <option name="homepage" value="https://grainlyicons.abhii.space" />
         <option name="urlTemplate" value="https://grainlyicons.abhii.space/r/{name}.json" />
       </RegistryConfigState>
+      <RegistryConfigState>
+        <option name="id" value="central-cnippet" />
+        <option name="name" value="Cnippet" />
+        <option name="namespace" value="@cnippet" />
+        <option name="baseUrl" value="https://ui.cnippet.dev/r" />
+        <option name="stylePath" value="/{name}.json" />
+        <option name="type" value="community" />
+        <option name="enabled" value="false" />
+        <option name="description" value="Cnippet UI is a production-ready, curated set of accessible and composable React components—built with Base UI and Tailwind CSS. Copy, paste, and ship stunning interfaces faster." />
+        <option name="homepage" value="https://ui.cnippet.dev/" />
+        <option name="urlTemplate" value="https://ui.cnippet.dev/r/{name}.json" />
+      </RegistryConfigState>
+      <RegistryConfigState>
+        <option name="id" value="central-dkmediaviewer" />
+        <option name="name" value="Dkmediaviewer" />
+        <option name="namespace" value="@dkmediaviewer" />
+        <option name="baseUrl" value="https://diklein.com/r" />
+        <option name="stylePath" value="/{name}.json" />
+        <option name="type" value="community" />
+        <option name="enabled" value="false" />
+        <option name="description" value="A minimalist, performant, and elegant photo and video viewer for React. Masonry grid, fly-in lightbox, a crossfading carousel, captions and camera EXIF data." />
+        <option name="homepage" value="https://diklein.com/dkmediaviewer" />
+        <option name="urlTemplate" value="https://diklein.com/r/{name}.json" />
+      </RegistryConfigState>
+      <RegistryConfigState>
+        <option name="id" value="central-tuiparts" />
+        <option name="name" value="Tuiparts" />
+        <option name="namespace" value="@tuiparts" />
+        <option name="baseUrl" value="https://tuiparts.sh/r" />
+        <option name="stylePath" value="/{name}.json" />
+        <option name="type" value="community" />
+        <option name="enabled" value="false" />
+        <option name="description" value="OpenTUI recipes, made simple. Ready to use, customizable terminal UI recipes for Core, React, and Solid." />
+        <option name="homepage" value="https://tuiparts.sh" />
+        <option name="urlTemplate" value="https://tuiparts.sh/r/{name}.json" />
+      </RegistryConfigState>
+      <RegistryConfigState>
+        <option name="id" value="central-shadcnloaders" />
+        <option name="name" value="Shadcnloaders" />
+        <option name="namespace" value="@shadcnloaders" />
+        <option name="baseUrl" value="https://shadcn-loaders.vercel.app/r" />
+        <option name="stylePath" value="/{name}.json" />
+        <option name="type" value="community" />
+        <option name="enabled" value="false" />
+        <option name="description" value="A public registry of shadcn-inspired animated loaders and loading states." />
+        <option name="homepage" value="https://shadcn-loaders.vercel.app" />
+        <option name="urlTemplate" value="https://shadcn-loaders.vercel.app/r/{name}.json" />
+      </RegistryConfigState>
     </registryConfigs>
   </component>
 </project>

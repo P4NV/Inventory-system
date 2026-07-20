@@ -6,28 +6,38 @@ import {
   UseGuards,
   Req,
 } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto } from './dto/auth.dto';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { Public } from './decorators/public.decorator';
 
 @Controller('auth')
+@UseGuards(ThrottlerGuard)
 export class AuthController {
   constructor(private authService: AuthService) {}
 
+  @Public()
   @Post('register')
-  async register(@Body() dto: RegisterDto) {
+  register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
+  @Public()
   @Post('login')
-  async login(@Body() dto: LoginDto) {
+  login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
 
+  @Public()
+  @Post('guest')
+  guest() {
+    return this.authService.loginAsGuest();
+  }
+
   @Get('me')
-  @UseGuards(JwtAuthGuard)
-  async me(@Req() req: Request) {
-    return this.authService.validateUser((req as any).user.id);
+  me(@Req() req: Request) {
+    const user = (req as Request & { user: { id: string } }).user;
+    return this.authService.validateUser(user.id);
   }
 }

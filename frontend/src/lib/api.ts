@@ -14,6 +14,10 @@ export function setStoredToken(token: string | null) {
   }
 }
 
+export function isGuest(user: User | null | undefined): boolean {
+  return user?.role === "guest";
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getStoredToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -35,7 +39,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(body || res.statusText, res.status);
   }
 
-  if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
@@ -46,12 +49,6 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
-
-export type HealthStatus = {
-  status: "ok";
-  database: "connected" | "disconnected";
-  timestamp: string;
-};
 
 export const CATEGORIES = [
   "general",
@@ -65,6 +62,8 @@ export const CATEGORIES = [
 
 export type Category = (typeof CATEGORIES)[number];
 
+export const LOW_STOCK_THRESHOLD = 10;
+
 export type Item = {
   id: string;
   name: string;
@@ -77,30 +76,12 @@ export type Item = {
   updatedAt: string;
 };
 
-export type CreateItemInput = {
-  name: string;
-  sku: string;
-  amount: number;
-  price: number;
-  category?: string;
-  isInStock?: boolean;
-};
-
-export type UpdateItemInput = {
-  name?: string;
-  sku?: string;
-  amount?: number;
-  price?: number;
-  category?: string;
-  isInStock?: boolean;
-};
-
 export type User = {
   id: string;
   email: string;
   name: string | null;
   role: string;
-  createdAt: string;
+  createdAt?: string;
 };
 
 export type AuthResponse = {
@@ -109,13 +90,9 @@ export type AuthResponse = {
 };
 
 export const api = {
-  health: () => request<HealthStatus>("/health"),
   listItems: () => request<Item[]>("/items"),
-  createItem: (data: CreateItemInput) =>
-    request<Item>("/items", { method: "POST", body: JSON.stringify(data) }),
-  updateItem: (id: string, data: UpdateItemInput) =>
-    request<Item>(`/items/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
-  deleteItem: (id: string) => request<void>(`/items/${id}`, { method: "DELETE" }),
+  guestLogin: () =>
+    request<AuthResponse>("/auth/guest", { method: "POST" }),
   register: (data: { email: string; password: string; name?: string }) =>
     request<AuthResponse>("/auth/register", { method: "POST", body: JSON.stringify(data) }),
   login: (data: { email: string; password: string }) =>

@@ -7,6 +7,7 @@ import { NotFound } from "@/pages/NotFound.tsx";
 import { AuthPage } from "@/pages/AuthPage.tsx";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary.tsx";
 import { AuthProvider, useAuth } from "@/lib/auth-context.tsx";
+import { InventoryProvider } from "@/lib/inventory-context.tsx";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -30,7 +31,15 @@ function App() {
           <Routes>
             <Route path="/login" element={<GuestRoute><AuthPage mode="login" /></GuestRoute>} />
             <Route path="/register" element={<GuestRoute><AuthPage mode="register" /></GuestRoute>} />
-            <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
+            <Route
+              element={
+                <ProtectedRoute>
+                  <InventoryProvider>
+                    <DashboardLayout />
+                  </InventoryProvider>
+                </ProtectedRoute>
+              }
+            >
               <Route path="/" element={<Home />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/inventory" element={<Inventory />} />

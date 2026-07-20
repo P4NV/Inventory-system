@@ -1,8 +1,8 @@
 import { NavLink } from "react-router-dom";
 import { motion, useReducedMotion } from "motion/react";
-import { api, type Item } from "@/lib/api";
+import { api, LOW_STOCK_THRESHOLD, type Item } from "@/lib/api";
 import { useEffect, useState } from "react";
-import { Package, DollarSign, CheckCircle2, XCircle, BarChart3, ClipboardList, Activity } from "lucide-react";
+import { Package, DollarSign, CheckCircle2, XCircle, BarChart3, ClipboardList } from "lucide-react";
 
 interface Stats {
   totalItems: number;
@@ -12,8 +12,6 @@ interface Stats {
   lowStock: number;
   categories: number;
 }
-
-const LOW_STOCK_THRESHOLD = 10;
 
 const statCards = [
   { key: "totalItems", label: "Total Items", icon: Package, accent: "text-accent" },
@@ -70,10 +68,9 @@ export function Home() {
           Inventory Management
         </p>
         <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
-          Welcome back
-          <br />
-          <span className="font-normal text-ink-soft">Here&apos;s your inventory overview</span>
+          Inventory Dashboard
         </h1>
+        <p className="mt-2 text-ink-soft">Real-time view of your inventory status</p>
       </motion.header>
 
       <motion.section
@@ -173,31 +170,6 @@ export function Home() {
               </motion.article>
             );
           })}
-        </div>
-      </motion.section>
-
-      <motion.section
-        initial={prefersReducedMotion ? undefined : { opacity: 0, y: 16 }}
-        animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.3 }}
-        className="mt-10"
-      >
-        <div className="rounded-xl border border-line bg-canvas-raised p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h2 className="font-display text-lg font-semibold text-ink">System Status</h2>
-              <p className="mt-1 text-sm text-ink-soft">Real-time connection to your backend API</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-accent/10 text-accent">
-                <Activity size={16} />
-              </span>
-              <div>
-                <p className="text-sm font-medium text-ink">API Connected</p>
-                <p className="text-xs text-ink-soft">PostgreSQL via Prisma</p>
-              </div>
-            </div>
-          </div>
         </div>
       </motion.section>
     </div>

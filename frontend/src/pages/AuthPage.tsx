@@ -3,7 +3,7 @@ import { useNavigate, NavLink } from "react-router-dom";
 import { motion, useReducedMotion } from "motion/react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context.tsx";
-import { LogIn, UserPlus, AlertCircle } from "lucide-react";
+import { LogIn, UserPlus, AlertCircle, UserRound } from "lucide-react";
 
 interface AuthPageProps {
   mode: "login" | "register";
@@ -23,6 +23,7 @@ export function AuthPage({ mode }: AuthPageProps) {
   });
   const [errors, setErrors] = useState<Partial<typeof form>>({});
   const [loading, setLoading] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const validate = () => {
@@ -55,6 +56,20 @@ export function AuthPage({ mode }: AuthPageProps) {
       setError(err.message || "Authentication failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGuest = async () => {
+    setError(null);
+    setGuestLoading(true);
+    try {
+      const response = await api.guestLogin();
+      login(response.token, response.user);
+      navigate("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Could not start a guest session");
+    } finally {
+      setGuestLoading(false);
     }
   };
 
@@ -167,12 +182,35 @@ export function AuthPage({ mode }: AuthPageProps) {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || guestLoading}
               className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-strong disabled:opacity-50 active:scale-[0.98]"
             >
               {loading ? "Please wait…" : isLogin ? "Sign in" : "Create account"}
             </button>
           </form>
+
+          {isLogin && (
+            <>
+              <div className="my-6 flex items-center gap-3 text-xs text-ink-muted">
+                <div className="h-px flex-1 bg-line" />
+                <span>or</span>
+                <div className="h-px flex-1 bg-line" />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGuest}
+                disabled={loading || guestLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-line bg-canvas px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-canvas-overlay disabled:opacity-50"
+              >
+                <UserRound size={14} className="text-accent" />
+                {guestLoading ? "Starting session…" : "Continue as guest"}
+              </button>
+              <p className="mt-2 text-center text-[11px] text-ink-muted">
+                View-only access · expires in 24 hours
+              </p>
+            </>
+          )}
 
           <p className="mt-6 text-center text-sm text-ink-soft">
             {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}

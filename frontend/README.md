@@ -2,14 +2,14 @@
 
 React 19 + TypeScript, built with Vite 8. Styled with Tailwind CSS v4, animated
 with [Motion](https://motion.dev). Icons from [lucide-react](https://lucide.dev).
-Routed with react-router-dom v7.
+Charts from [Recharts](https://recharts.org). PDF generation with [jsPDF](https://github.com/parallax/jsPDF).
 
 ## Commands
 
 ```bash
 npm install
 npm run dev       # start dev server at http://localhost:5173
-npm run build     # type-check (tsc) + production build (vite)
+npm run build     # type-check (tsc -b) + production build (vite build)
 npm run lint      # run oxlint
 npm run preview   # preview the production build locally
 ```
@@ -29,27 +29,27 @@ src/
     DashboardLayout.tsx         Shared Topbar + Sidebar + <Outlet/>
 
   pages/
-    Home.tsx                    Landing page (stats, quick actions, system status)
-    Dashboard.tsx               Analytics with Recharts bar charts
-    Inventory.tsx               Inventory CRUD page
-    AuthPage.tsx                Login/register form
+    Home.tsx                    Landing page (stats cards, quick actions)
+    Dashboard.tsx               Analytics: KPI cards, bar charts, stock donut
+    Inventory.tsx               View-only item table + PDF report download buttons
+    AuthPage.tsx                Login / register / guest form
     NotFound.tsx                404 page
 
   components/
     ui/
-      Modal.tsx                 Reusable <dialog> modal
       ErrorBoundary.tsx         Catches React crash errors gracefully
     nav/
-      Sidebar.tsx               NavLink sidebar with lucide-react icons
-      Topbar.tsx                Auth-aware top bar (user dropdown with real name/email)
+      Sidebar.tsx               NavLink sidebar + Download Report dropdown
+      Topbar.tsx                Cmd+K global search + user dropdown with sign-out
     features/
-      StackStatus.tsx           Health check display (3-layer stack status)
-      SignalLog.tsx             Animated read-only item list (home page demo)
-      InventoryManager.tsx      CRUD table with add modal, optimistic updates
+      InventoryManager.tsx      Read-only item table with search filtering
 
   lib/
-    api.ts                      Typed fetch client, types, API methods, CATEGORIES constant
-    auth-context.tsx            React context for auth state (user, login, logout, loading)
+    api.ts                      Typed fetch client, types, API methods
+    auth-context.tsx            React context for auth state (user, login, logout)
+    inventory-context.tsx       Items state context (auto-fetches on mount)
+    report.ts                   PDF generation using jsPDF + jspdf-autotable
+    search.ts                   Search scoring engine for items and pages
 ```
 
 ## Authentication
@@ -57,11 +57,12 @@ src/
 Auth is handled by `AuthContext` (`src/lib/auth-context.tsx`):
 
 - **Token persistence** — JWT stored in `localStorage` under `inv_token`, survives page reloads
-- **Session restore** — on mount, calls `GET /auth/me` with the stored token to fetch the user profile
-- **Reactive state** — `useAuth()` exposes `{ user, loading, login, logout }` to any component
-- **Route guards** — `ProtectedRoute` redirects to `/login` if unauthenticated; `GuestRoute` redirects
-  to `/dashboard` if already authenticated
-- **Auto-logout** — on 401 responses the token is cleared automatically
+- **Session restore** — on mount, calls `GET /auth/me` with the stored token
+- **Reactive state** — `useAuth()` exposes `{ user, loading, login, logout }`
+- **Route guards** — `ProtectedRoute` redirects to `/login` if unauthenticated; `GuestRoute`
+  redirects to `/dashboard` if already authenticated
+- **Guest mode** — "Continue as guest" on the login page creates a 24-hour session with
+  `role: "guest"` (write operations disabled, "Guest" badge shown in topbar)
 
 ```tsx
 import { useAuth } from "@/lib/auth-context";
@@ -74,7 +75,7 @@ function MyComponent() {
 
 ## Routing
 
-Routes are defined in `App.tsx` with auth guards:
+Routes are defined in `App.tsx`:
 
 ```tsx
 <BrowserRouter>
@@ -109,25 +110,56 @@ automatically read from `localStorage` and attached to every request.
 ```ts
 import { api, type Item } from "@/lib/api";
 
+// View items (public)
 const items: Item[] = await api.listItems();
-const created = await api.createItem({ name: "Widget", sku: "W-001", amount: 10, price: 9.99 });
-const updated = await api.updateItem(id, { price: 7.50 });
-await api.deleteItem(id);
 
 // Auth
 const { user, token } = await api.login({ email, password });
+const { user, token } = await api.register({ email, password, name: "John" });
+const { user, token } = await api.guestLogin();
 const profile = await api.me();
 ```
 
-## Icons
+## PDF Reports
 
-This project uses [lucide-react](https://lucide.dev) for all UI icons.
-Import any Lucide icon by name:
+Reports are generated client-side with **jsPDF** + **jspdf-autotable** in `src/lib/report.ts`.
 
-```tsx
-import { Package, DollarSign, User } from "lucide-react";
-<Package size={16} />
+```ts
+import { downloadReport } from "@/lib/report";
+import type { ReportPeriod } from "@/lib/report";
+
+// Download a report
+downloadReport(items, "daily");   // items added today
+downloadReport(items, "monthly"); // items added this month
+downloadReport(items, "yearly");  // items added this year
 ```
+
+Each PDF includes:
+- Branded header with period label and date range
+- Summary cards (total items, value, in/out of stock)
+- Full item table with all columns
+- Page numbers and generation timestamp
+
+**Access points:** Download Report dropdown in the sidebar footer, or Daily/Monthly/Yearly
+buttons on the Inventory page header.
+
+## Charts (Dashboard)
+
+Charts use **Recharts** in `src/pages/Dashboard.tsx`:
+
+- **Row 1** — 6 KPI cards: total items, total value, in-stock count, categories, avg price, stock health
+- **Row 2** — Two horizontal bar charts: items by category count, category inventory value
+- **Row 3** — Monthly activity bar chart + stock health donut chart with legend
+
+All charts use a custom dark tooltip and color-coded cells with value labels.
+
+## Global search
+
+Cmd+K opens the search bar in the topbar. It searches:
+- **Items** — by name, SKU, and category (scored by match quality)
+- **Pages** — by title and path
+
+Results are grouped by category with keyboard navigation (arrow keys + Enter).
 
 ## Design tokens
 
@@ -155,29 +187,12 @@ export const CATEGORIES = [
 ] as const;
 ```
 
-The inventory form's `<select>` reads from this array. To add a new category,
-just append a string — no other changes needed.
-
-## Modal component
-
-`src/components/ui/Modal.tsx` wraps the native `<dialog>` element:
-
-```tsx
-<Modal open={isOpen} onClose={() => setIsOpen(false)} title="Add item">
-  {/* form content */}
-</Modal>
-```
-
-- Uses `showModal()` / `close()` for proper focus trapping and backdrop
-- Clicking the backdrop or pressing Escape closes it
-
-## ErrorBoundary
-
-`src/components/ui/ErrorBoundary.tsx` wraps the entire app. If a component
-crashes, it shows a friendly fallback with a reload button instead of a white
-screen.
+To add a new category, just append a string — no other changes needed.
 
 ## Environment
 
-Copy `.env.example` to `.env` and set `VITE_API_URL` to the backend URL
-(defaults to `http://localhost:3000`).
+```bash
+VITE_API_URL=http://localhost:3000
+```
+
+Copy `.env.example` to `.env` and set `VITE_API_URL` to the backend URL.

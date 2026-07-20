@@ -1,14 +1,35 @@
-# Full-Stack Starter (inv-app)
+# inv-app — Inventory Management System
 
-React 19 + TypeScript + Tailwind CSS v4 + Motion + **lucide-react** on the frontend.
-NestJS 11 + Prisma ORM 7 + PostgreSQL on the backend. Two independent apps in one repo.
+A full-stack inventory management application with real-time analytics, PDF reporting, and guest access. Built with React 19 + NestJS 11 + PostgreSQL.
 
 ```
 inv-app/
-  frontend/           React 19 SPA (Vite 8)
-  backend/            NestJS 11 API
-  docker-compose.yml  local PostgreSQL 16
+  frontend/           React 19 SPA (Vite 8, Tailwind CSS v4, Recharts)
+  backend/            NestJS 11 API (Prisma ORM 7, Passport JWT)
+  docker-compose.yml  PostgreSQL 16 (port 5433)
 ```
+
+---
+
+## Features
+
+- **Dashboard** — KPI cards, category breakdown bar charts, monthly activity trends, stock health donut chart
+- **Inventory view** — Read-only item table with live search filtering by name, SKU, or category
+- **PDF Reports** — Download Daily / Monthly / Yearly inventory reports with summary stats and full item table
+- **Guest access** — Instant view-only session without sign-up (24h expiry)
+- **User auth** — Register / Login with JWT-based authentication (7-day tokens)
+- **Global search** — Cmd+K search bar that finds items and pages across the app
+
+---
+
+## Tech stack
+
+| Layer | Tech |
+|-------|------|
+| Frontend | React 19, TypeScript 6, Vite 8, Tailwind CSS v4, Motion, Recharts, lucide-react, jsPDF |
+| Backend | NestJS 11, Passport.js (JWT), Prisma ORM 7, PostgreSQL (driver adapters) |
+| Database | PostgreSQL 16 (Docker) |
+| Auth | bcryptjs, 7-day JWT tokens, guest sessions with 24h TTL |
 
 ---
 
@@ -25,8 +46,7 @@ inv-app/
 npm run install:all
 ```
 
-Installs both `frontend/` and `backend/`. The backend postinstall runs
-`prisma generate` to build the typed Prisma client.
+Installs both `frontend/` and `backend/`. The backend postinstall runs `prisma generate`.
 
 ### 2. Configure environment
 
@@ -43,7 +63,21 @@ Edit `backend/.env` and set a strong `JWT_SECRET`.
 npm run db:up
 ```
 
-### 4. Run both apps
+### 4. Run database migrations
+
+```bash
+npm run prisma:migrate
+```
+
+### 5. Seed the database (optional)
+
+```bash
+npm run prisma:seed
+```
+
+Creates 80+ sample items across 10+ categories and two users (`admin@example.com` / `guest@example.com`, password: `password123`).
+
+### 6. Run both apps
 
 ```bash
 npm run dev
@@ -53,70 +87,55 @@ Frontend at `http://localhost:5173`, API at `http://localhost:3000`.
 
 ---
 
-## How it works
-
-### Architecture overview
+## Architecture
 
 ```
 Browser (React SPA)
-  └─ src/lib/api.ts              typed fetch wrapper (Bearer token from localStorage)
-       │  VITE_API_URL (http://localhost:3000)
-       │
-       ├─ AuthContext             reactive auth state (user, login, logout)
-       ├─ ProtectedRoute          redirects to /login if unauthenticated
-       └─ GuestRoute              redirects to /dashboard if already logged in
+  │
+  ├─ AuthContext              reactive auth state (user, login, logout, loading)
+  ├─ InventoryProvider        items state + auto-fetch on mount
+  ├─ ProtectedRoute           redirects to /login if unauthenticated
+  ├─ GuestRoute               redirects to /dashboard if already logged in
+  │
+  └─ api.ts                   typed fetch wrapper (auto-attaches Bearer token)
        │
        ▼
-NestJS API (Express)
-  └─ Global ValidationPipe        whitelist, transform, forbidNonWhitelisted
-       ├─ AuthController          POST /auth/register, /login | GET /auth/me (JWT)
-       │    ├─ JwtStrategy        validates Bearer token from header
-       │    └─ JwtAuthGuard       protects write endpoints
-       ├─ ItemsController         CRUD /items (create/update/delete require JWT)
-       │    └─ ItemsService       business logic, Prisma queries, P2002 → 409
-       └─ PrismaService           global PrismaClient + PrismaPg adapter
-            └─ PostgreSQL         Docker, port 5433
+NestJS API (Express on :3000)
+  │
+  ├─ Global JwtAuthGuard      checks @Public() metadata — blocks unauthenticated
+  │   │                       requests unless route is marked public
+  │   ├─ @Public()            AuthController (register, login, guest)
+  │   └─ @Public()            ItemsController (list items)
+  │
+  ├─ ValidationPipe           whitelist, transform, forbidNonWhitelisted
+  │
+  ├─ AuthController           POST /auth/register, /login, /guest | GET /auth/me
+  │   └─ AuthService          bcrypt hash/compare, JWT sign, guest user creation
+  │
+  ├─ ItemsController          GET /items (view-only, public)
+  │   └─ ItemsService         Prisma query: all items ordered by addedAt desc
+  │
+  └─ PrismaService            PrismaClient with PrismaPg adapter
+       │
+       ▼
+  PostgreSQL (Docker :5433)
 ```
 
-### Request lifecycle
+### Key design decisions
 
-1. Frontend calls `api.listItems()` (token from `localStorage` auto-attached via `Authorization` header)
-2. `api.ts` sends `fetch` to `VITE_API_URL + path`
-3. NestJS matches the route to a controller method
-4. The global `ValidationPipe` validates the request body against the DTO
-   - `whitelist: true` strips unknown fields
-   - `forbidNonWhitelisted: true` rejects requests with extra fields
-   - `transform: true` auto-converts types
-5. Protected endpoints (`POST/PATCH/DELETE /items`) run through `JwtAuthGuard`
-6. The controller calls the service method
-7. The service uses `PrismaService` to query Postgres
-8. Unique constraint violations (duplicate SKU) return `409 Conflict`
-9. Missing items return `404 NotFound`
-10. The response is returned as JSON
-
-### CORS
-
-The backend only accepts requests from the origin in `FRONTEND_URL`
-(`backend/.env`). This must match the protocol + host + port the frontend is
-served from.
+- **View-only inventory** — Items are publicly readable via `GET /items`. Create, update, and delete operations have been removed to keep the app focused on viewing and reporting.
+- **Public route pattern** — Routes are protected by default via a global `JwtAuthGuard`. Public routes are marked with `@Public()` decorator — no need for per-route guard configuration.
+- **Guest sessions** — Anonymous users can log in as a guest (random UUID name, `role: "guest"`) for instant view-only access. Sessions expire after 24 hours.
 
 ---
 
 ## API reference
 
-All endpoints are prefixed with the base URL (`http://localhost:3000`).
-
-### `GET /`
-
-Returns server info and available routes.
-
-```json
-{ "name": "backend", "status": "ok", "routes": ["/health", "/items", "/auth"] }
-```
+Base URL: `http://localhost:3000`
 
 ### `GET /health`
 
-Checks database connectivity. Returns `200` if the DB responds, `503` if not.
+Checks database connectivity.
 
 ```json
 { "status": "ok", "database": "connected", "timestamp": "2026-07-17T15:44:21.944Z" }
@@ -124,28 +143,24 @@ Checks database connectivity. Returns `200` if the DB responds, `503` if not.
 
 ### `POST /auth/register`
 
-Creates a new user. Returns `201` with user + JWT token.
-
-**Body:**
+Creates a new user account. Returns `201` with user + JWT token.
 
 | Field | Type | Constraints |
 |-------|------|-------------|
 | `email` | string | valid email, unique |
-| `password` | string | 8-50 chars |
+| `password` | string | 8–50 chars |
 | `name` | string (optional) | max 100 chars |
 
-Returns `409` if the email is already registered.
+Returns `409` if email is already registered.
 
 ### `POST /auth/login`
 
-Authenticates and returns a JWT token.
+Authenticates and returns a JWT token (7-day expiry).
 
-**Body:**
-
-| Field | Type | Constraints |
-|-------|------|-------------|
-| `email` | string | valid email |
-| `password` | string | — |
+| Field | Type |
+|-------|------|
+| `email` | string |
+| `password` | string |
 
 Returns `401` on invalid credentials.
 
@@ -158,9 +173,13 @@ Returns `401` on invalid credentials.
 }
 ```
 
+### `POST /auth/guest`
+
+Creates an anonymous guest session (24-hour token, `role: "guest"`). Returns same shape as login.
+
 ### `GET /auth/me`
 
-Returns the authenticated user's profile. Requires `Authorization: Bearer <token>` header.
+Returns the authenticated user's profile. Requires `Authorization: Bearer <token>`.
 
 ```json
 { "id": "uuid", "email": "john@example.com", "name": "John", "role": "user" }
@@ -168,7 +187,7 @@ Returns the authenticated user's profile. Requires `Authorization: Bearer <token
 
 ### `GET /items`
 
-Returns all items, newest first. Public.
+Returns all items, newest first. Public — no auth required.
 
 ```json
 [
@@ -186,53 +205,22 @@ Returns all items, newest first. Public.
 ]
 ```
 
-### `POST /items`
-
-Creates a new item. Requires JWT authentication.
-
-**Body (required fields):**
-
-| Field | Type | Constraints |
-|-------|------|-------------|
-| `name` | string | not empty, max 200 chars |
-| `sku` | string | not empty, max 50 chars, must be unique |
-| `amount` | integer | >= 0 |
-| `price` | number | >= 0 |
-
-**Optional:**
-
-| Field | Type | Default | Notes |
-|-------|------|---------|-------|
-| `category` | string | `"general"` | max 100 chars. Predefined: `general`, `electronics`, `furniture`, `clothing`, `food`, `tools`, `materials` |
-| `isInStock` | boolean | `true` | |
-
-Returns `409` if SKU already exists.
-
-**Validation errors (400):**
-
-```json
-{
-  "statusCode": 400,
-  "message": ["name should not be empty", "sku must be shorter than or equal to 50 characters"],
-  "error": "Bad Request"
-}
-```
-
-### `PATCH /items/:id`
-
-Partially updates an item. Requires JWT authentication. All fields optional.
-
-Returns `404` if the item doesn't exist.
-
-### `DELETE /items/:id`
-
-Deletes an item. Requires JWT authentication. Returns `204`. Returns `404` if not found.
-
 ---
 
 ## Data model
 
 ```prisma
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("user")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("users")
+}
+
 model Item {
   id        String   @id @default(uuid())
   name      String
@@ -245,30 +233,21 @@ model Item {
   updatedAt DateTime @updatedAt
   @@map("items")
 }
-
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String?
-  role      String   @default("user")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@map("users")
-}
 ```
 
 | Column | DB Type | Notes |
 |--------|---------|-------|
-| `id` | text (UUID) | Auto-generated, primary key |
+| `id` | text (UUID) | Auto-generated primary key |
 | `name` | text | Item display name |
-| `sku` | text | Stock keeping unit, unique index |
+| `sku` | text | Stock keeping unit, unique |
 | `amount` | integer | Current stock quantity |
 | `price` | double precision | Unit price |
-| `category` | text | Item category, defaults to `"general"` |
-| `isInStock` | boolean | Whether the item is considered in stock |
-| `addedAt` | timestamp(3) | When the record was created |
-| `updatedAt` | timestamp(3) | Auto-updated on every write |
+| `category` | text | Category label, defaults to `"general"` |
+| `isInStock` | boolean | Stock status flag |
+| `addedAt` | timestamp(3) | Creation timestamp |
+| `updatedAt` | timestamp(3) | Auto-updated on write |
+
+Supported categories: `general`, `electronics`, `furniture`, `clothing`, `food`, `tools`, `materials`
 
 ---
 
@@ -276,85 +255,100 @@ model User {
 
 ```
 inv-app/
-  docker-compose.yml          PostgreSQL 16 container (port 5433)
-  package.json                Root scripts (install:all, dev, db:up, etc.)
+  docker-compose.yml          PostgreSQL 16
+  package.json                Root scripts: install:all, dev, db:up/down
 
   backend/
     prisma/
-      schema.prisma           Data models (Item, User)
-      config.ts               Prisma config for CLI commands
+      schema.prisma           Data models (User, Item)
+      seed.ts                 82-sample-item seeder
       migrations/             Versioned SQL migrations
     src/
-      main.ts                 Bootstrap: CORS, ValidationPipe, port
-      app.module.ts           Root module
-      app.controller.ts       GET / — server info
+      main.ts                 Bootstrap: CORS, ValidationPipe, port 3000
+      app.module.ts           Root module — global guards (Throttler, JwtAuth)
       prisma/
-        prisma.module.ts      @Global module
-        prisma.service.ts     PrismaClient via PrismaPg driver adapter
-      health/
-        health.controller.ts  GET /health — DB ping
-      items/
-        items.controller.ts   CRUD /items (POST/PATCH/DELETE guarded)
-        items.service.ts      CRUD logic, unique constraint handling
-        dto/
-          create-item.dto.ts
-          update-item.dto.ts
+        prisma.service.ts     PrismaClient + PrismaPg driver adapter
       auth/
-        auth.controller.ts    POST /auth/register, /login | GET /auth/me
-        auth.service.ts       Registration, login, JWT generation
+        auth.controller.ts    POST /register, /login, /guest | GET /me
+        auth.service.ts       Registration, login, JWT, guest logic
+        auth.module.ts        JwtModule, PassportModule, JwtStrategy
+        decorators/
+          public.decorator.ts @Public() — bypasses global JWT guard
         guards/
-          jwt-auth.guard.ts
+          jwt-auth.guard.ts   Global guard — checks @Public() metadata
         strategies/
-          jwt.strategy.ts     Validates Bearer tokens
+          jwt.strategy.ts     Bearer token validation
         dto/
           auth.dto.ts         RegisterDto, LoginDto
+      items/
+        items.controller.ts   GET /items — public, view-only
+        items.service.ts      findAll() — ordered by addedAt desc
+        items.module.ts
 
   frontend/
     src/
       main.tsx                React root mount
-      App.tsx                 Router with auth-aware route guards
-      index.css               Tailwind v4 + @theme design tokens
+      App.tsx                 Router: /login, /register, /, /dashboard, /inventory
+      index.css               Tailwind v4 @theme design tokens
       config/
         navigation.ts         Nav items for sidebar
       layouts/
-        DashboardLayout.tsx   Topbar + Sidebar + <Outlet/>
+        DashboardLayout.tsx   Topbar + Sidebar + Outlet
       pages/
-        Home.tsx              Landing page with stats and quick actions
-        Dashboard.tsx         Analytics with Recharts bar charts
-        Inventory.tsx         CRUD page
-        AuthPage.tsx          Login/register form
-        NotFound.tsx          404 page
+        Home.tsx              Landing page with stats cards
+        Dashboard.tsx         Analytics: bar charts, pie chart, KPIs
+        Inventory.tsx         View-only table + PDF report buttons
+        AuthPage.tsx          Login / register / guest form
+        NotFound.tsx          404
       components/
         ui/
-          Modal.tsx           Native <dialog> wrapper
-          ErrorBoundary.tsx   Catches React crash errors
+          ErrorBoundary.tsx   Crash fallback UI
         nav/
-          Sidebar.tsx         NavLink sidebar with lucide-react icons
-          Topbar.tsx          Auth-aware top bar with user dropdown
+          Sidebar.tsx         Nav + Download Report dropdown
+          Topbar.tsx          Search (Cmd+K) + user dropdown with sign-out
         features/
-          StackStatus.tsx     Health check display (3-layer stack)
-          SignalLog.tsx       Animated item list (demo)
-          InventoryManager.tsx CRUD table + add modal
+          InventoryManager.tsx Read-only item table with search filtering
       lib/
-        api.ts                Typed fetch client, types, API methods
-        auth-context.tsx      Reactive auth state (user, login, logout)
+        api.ts                Typed fetch client + all API methods
+        auth-context.tsx      Auth state context (user, login, logout)
+        inventory-context.tsx Items state + auto-fetch
+        report.ts             PDF generation (jsPDF + jspdf-autotable)
+        search.ts             Search scoring engine
 ```
 
 ---
 
-## Authentication flow
+## Pages
 
-1. User submits login/register form on `AuthPage`
-2. `api.login()` / `api.register()` sends credentials to the backend
-3. Backend validates credentials (bcrypt compare) or creates user (bcrypt hash)
-4. Returns `{ user, token }` where token is a JWT signed with `JWT_SECRET` (7-day expiry)
-5. Frontend stores the token in `localStorage` via `AuthContext.login()`
-6. `AuthContext` fetches the user profile via `GET /auth/me` on page load
-7. `ProtectedRoute` redirects to `/login` if no user is found
-8. `GuestRoute` redirects to `/dashboard` if already authenticated
-9. All API requests automatically attach `Authorization: Bearer <token>` from `localStorage`
-10. On 401 responses, the token is cleared and the user is logged out
-11. `JWT_SECRET` is required — the backend throws on startup if missing
+| Path | Page | Access | Description |
+|------|------|--------|-------------|
+| `/login` | AuthPage | Guest only | Sign in, register, or continue as guest |
+| `/register` | AuthPage | Guest only | Create a new account |
+| `/` | Home | Authenticated | KPI summary cards, quick action navigation |
+| `/dashboard` | Dashboard | Authenticated | Analytics: bar charts by category, monthly trends, stock distribution |
+| `/inventory` | Inventory | Authenticated | Item table with live search, PDF report downloads |
+| `*` | NotFound | Public | 404 fallback |
+
+---
+
+## PDF Reports
+
+Reports are generated entirely on the client side using **jsPDF** — no server-side rendering needed.
+
+**Available periods:**
+- **Daily** — items added today
+- **Monthly** — items added this month
+- **Yearly** — items added this year
+
+**Report contents:**
+- Branded header with period label and date range
+- Summary cards: total items, total value, in-stock count, out-of-stock count
+- Full item table: Name, SKU, Category, Qty, Price, Stock status
+- Page numbers and generation timestamp
+
+**Access points:**
+- **Sidebar** — Download Report dropdown at the bottom
+- **Inventory page** — Daily / Monthly / Yearly buttons in the top-right header
 
 ---
 
@@ -362,44 +356,22 @@ inv-app/
 
 | Variable | File | Default | Purpose |
 |----------|------|---------|---------|
-| `DATABASE_URL` | `backend/.env` | `postgresql://postgres:postgres@localhost:5433/appdb` | Postgres connection |
+| `DATABASE_URL` | `backend/.env` | `postgresql://postgres:postgres@localhost:5433/appdb` | Postgres connection string |
 | `PORT` | `backend/.env` | `3000` | API listen port |
 | `FRONTEND_URL` | `backend/.env` | `http://localhost:5173` | CORS allow-origin |
-| `JWT_SECRET` | `backend/.env` | _(required)_ | JWT signing key |
-| `VITE_API_URL` | `frontend/.env` | `http://localhost:3000` | API base URL for frontend |
-
----
-
-## How to add a new page
-
-1. **Add nav entry** in `src/config/navigation.ts` — sidebar updates automatically.
-2. **Create the page** in `src/pages/`.
-3. **Register the route** in `src/App.tsx` inside the layout block.
-
----
-
-## How to add a new API resource
-
-1. **Model** — add to `backend/prisma/schema.prisma`
-2. **Migrate** — `npx prisma migrate dev --name <label>`
-3. **DTOs** — create DTO files with `class-validator` decorators
-4. **Service** — business logic with Prisma queries
-5. **Controller** — HTTP layer, use `@UseGuards(JwtAuthGuard)` for write endpoints
-6. **Module** — wire controller + providers, register in `app.module.ts`
+| `JWT_SECRET` | `backend/.env` | _(required)_ | JWT signing key (generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`) |
+| `VITE_API_URL` | `frontend/.env` | `http://localhost:3000` | API base URL for the frontend |
 
 ---
 
 ## Troubleshooting
 
-**`/items` returns 500** — Restart the backend after schema changes.
-Run `npx prisma generate` in `backend/`.
+**`/items` returns 500** — Restart the backend after schema changes. Run `npx prisma generate` in `backend/`.
 
-**`password authentication failed for user "postgres"`** — Check port 5432.
-Docker maps to 5433 to avoid conflicts.
+**`password authentication failed for user "postgres"`** — Docker maps to port 5433 to avoid conflicts. Check your `DATABASE_URL`.
 
-**CORS errors** — `FRONTEND_URL` must exactly match the frontend origin.
+**CORS errors** — `FRONTEND_URL` in `backend/.env` must exactly match the frontend origin (including port).
 
 **`JWT_SECRET is required`** — Set `JWT_SECRET` in `backend/.env`.
 
-**Auth token lost on refresh** — Not anymore. Tokens persist in `localStorage`
-under key `inv_token`. The `AuthContext` restores the session on mount.
+**Auth token lost on refresh** — Tokens persist in `localStorage` under `inv_token`. The `AuthContext` restores the session on mount.

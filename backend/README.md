@@ -23,55 +23,59 @@ npm run format           # Prettier
 
 ```
 prisma/
-  schema.prisma            Data models (Item, User)
-  config.ts                Prisma 7 config — holds DATABASE_URL for CLI commands
+  schema.prisma            Data models (User, Item)
+  seed.ts                  82-sample-item seeder + 2 users
   migrations/              Versioned SQL migration files
 
 src/
-  main.ts                  Bootstrap: CORS, ValidationPipe, port
-  app.module.ts            Root module — imports all feature modules
-  app.controller.ts        GET / — server info + route listing
+  main.ts                  Bootstrap: CORS, ValidationPipe, port 3000
+  app.module.ts            Root module — registers ThrottlerGuard + JwtAuthGuard globally
 
   prisma/
     prisma.module.ts       @Global module — every module gets PrismaService
     prisma.service.ts      PrismaClient subclass using PrismaPg adapter
-                           Connects on init, disconnects on destroy
-
-  health/
-    health.controller.ts   GET /health — runs SELECT 1, returns DB status
-
-  items/
-    items.controller.ts    CRUD /items (POST/PATCH/DELETE guarded by JWT)
-    items.service.ts       CRUD logic with NotFoundException + ConflictException (duplicate SKU)
-    dto/
-      create-item.dto.ts   POST body validation
-      update-item.dto.ts   PATCH body validation (all optional)
 
   auth/
-    auth.controller.ts     POST /auth/register, /login | GET /auth/me (JWT protected)
-    auth.service.ts        Registration (bcrypt hash), login (bcrypt compare), JWT generation
+    auth.controller.ts     POST /auth/register, /login, /guest | GET /auth/me
+    auth.service.ts        Registration, login, guest login, JWT generation
+    auth.module.ts         JwtModule, PassportModule, JwtStrategy
+    decorators/
+      public.decorator.ts  @Public() — bypasses the global JwtAuthGuard
     guards/
-      jwt-auth.guard.ts    Passport-based JWT guard
+      jwt-auth.guard.ts    Global guard — checks @Public() metadata before enforcing auth
     strategies/
-      jwt.strategy.ts      Extracts and validates Bearer tokens
+      jwt.strategy.ts      Validates Bearer tokens, queries DB for user existence
     dto/
       auth.dto.ts          RegisterDto, LoginDto with class-validator decorators
+
+  items/
+    items.controller.ts    GET /items — public, view-only
+    items.service.ts       findAll() — Prisma query sorted by addedAt desc
+    items.module.ts
 ```
 
 ## Authentication
 
-The backend uses **JWT (JSON Web Tokens)** for stateless authentication:
+The backend uses **JWT (JSON Web Tokens)** for stateless authentication.
 
-- **Registration** — `POST /auth/register` hashes the password with bcrypt (10 rounds),
-  creates the user, and returns `{ user, token }`
-- **Login** — `POST /auth/login` validates credentials with bcrypt.compare and returns
-  `{ user, token }`
-- **Token format** — JWT with `sub` (user ID), `email`, `role`, expires in 7 days
-- **Validation** — `JwtStrategy` extracts the Bearer token, verifies the signature, and
-  calls `AuthService.validateUser()` to confirm the user still exists
-- **Protection** — `@UseGuards(JwtAuthGuard)` on write endpoints (`POST/PATCH/DELETE /items`)
-- **Secret** — `JWT_SECRET` environment variable is **required**. The backend throws at startup
-  if it's missing. No hardcoded fallback.
+### Global guard with public bypass
+
+All routes are protected by default via `JwtAuthGuard` registered as a global `APP_GUARD`.
+Routes marked with `@Public()` are accessible without authentication:
+
+```ts
+@Public()
+@Post('register')
+register(@Body() dto: RegisterDto) { ... }
+```
+
+| Endpoint | Auth | Why |
+|----------|------|-----|
+| `POST /auth/register` | Public | Registration |
+| `POST /auth/login` | Public | Authentication |
+| `POST /auth/guest` | Public | Guest session creation |
+| `GET /items` | Public | View-only inventory |
+| `GET /auth/me` | JWT required | Profile lookup |
 
 ### Auth flow
 
@@ -80,30 +84,52 @@ Client                    Backend
   │                         │
   ├─ POST /auth/login ─────→│
   │                         ├─ bcrypt.compare(password, hash)
-  │                         ├─ JWT.sign({ sub, email, role })
+  │                         ├─ JWT.sign({ sub, email, role }, { expiresIn: '7d' })
   │←──── { user, token } ──┤
   │                         │
-  ├─ POST /items ──────────→│  (Authorization: Bearer <token>)
-  │                         ├─ JwtStrategy.validate()
-  │                         ├─ ItemsService.create()
-  │←──── 201 Created ──────┤
+  ├─ GET /items ───────────→│  (no auth required — @Public())
+  │←──── 200 Item[] ───────┤
+  │                         │
+  ├─ GET /auth/me ─────────→│  (Authorization: Bearer <token>)
+  │                         ├─ JwtStrategy.validate() — verifies JWT signature
+  │                         ├─ AuthService.validateUser(id) — checks DB
+  │←──── 200 User ─────────┤
 ```
+
+### Guest sessions
+
+`POST /auth/guest` creates an anonymous user with:
+- Random UUID-based email and name
+- `role: "guest"`
+- 24-hour JWT expiry (vs 7 days for registered users)
 
 ## API endpoints
 
 | Method | Path | Auth | Body | Status | Description |
 |--------|------|------|------|--------|-------------|
-| `GET` | `/` | — | — | `200` | Server info + route listing |
-| `GET` | `/health` | — | — | `200`/`503` | DB connectivity check |
-| `POST` | `/auth/register` | — | `{ email, password, name? }` | `201`/`409` | Register new user |
-| `POST` | `/auth/login` | — | `{ email, password }` | `200`/`401` | Authenticate user |
-| `GET` | `/auth/me` | JWT | — | `200`/`401` | Current user profile |
-| `GET` | `/items` | — | — | `200` | List all items (public) |
-| `POST` | `/items` | JWT | `{ name, sku, amount, price, category?, isInStock? }` | `201`/`409` | Create item |
-| `PATCH` | `/items/:id` | JWT | any subset of fields | `200`/`404` | Partial update |
-| `DELETE` | `/items/:id` | JWT | — | `204`/`404` | Delete item |
+| `GET` | `/health` | Public | — | `200` / `503` | DB connectivity check |
+| `POST` | `/auth/register` | Public | `{ email, password, name? }` | `201` / `409` | Register new user |
+| `POST` | `/auth/login` | Public | `{ email, password }` | `200` / `401` | Authenticate |
+| `POST` | `/auth/guest` | Public | — | `201` | Guest session |
+| `GET` | `/auth/me` | JWT | — | `200` / `401` | Current user profile |
+| `GET` | `/items` | Public | — | `200` | List all items (newest first) |
 
 ## Data model
+
+### User
+
+```prisma
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("user")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("users")
+}
+```
 
 ### Item
 
@@ -122,66 +148,53 @@ model Item {
 }
 ```
 
-### User
+Supported categories: `general`, `electronics`, `furniture`, `clothing`, `food`, `tools`, `materials`
 
-```prisma
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String?
-  role      String   @default("user")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@map("users")
-}
-```
+## Key patterns
 
-## How each layer works
+### `@Public()` decorator
 
-### `main.ts` — Bootstrap
+Routes that don't require auth use the `@Public()` decorator from `src/auth/decorators/public.decorator.ts`. It sets `isPublic: true` metadata that the global `JwtAuthGuard` checks before enforcing authentication.
 
 ```ts
-app.enableCors({ origin: process.env.FRONTEND_URL });  // single-origin CORS
-app.useGlobalPipes(new ValidationPipe({                  // runs on every request
-  whitelist: true,        // strips fields not in the DTO
-  transform: true,        // auto-converts types (string → number, etc.)
-  forbidNonWhitelisted: true,  // rejects requests with extra fields → 400
+@Public()
+@Get()
+findAll() { ... }
+```
+
+### Global `ValidationPipe`
+
+Configured in `main.ts` — runs on every request:
+
+```ts
+app.useGlobalPipes(new ValidationPipe({
+  whitelist: true,              // strips fields not in the DTO
+  transform: true,              // auto-converts types
+  forbidNonWhitelisted: true,   // rejects extra fields → 400
 }));
 ```
 
-### `PrismaService` — Database client
+### `PrismaService`
 
-Extends `PrismaClient` with a `PrismaPg` adapter. Decorated with `@Global()` so
-every module can inject it without importing `PrismaModule`.
+Extends `PrismaClient` with a `PrismaPg` driver adapter. Decorated with `@Global()` so every module can inject it without importing `PrismaModule`.
 
-### DTOs — Request validation
+### Rate limiting
 
-DTOs use `class-validator` decorators. The global `ValidationPipe` instantiates
-the DTO class from the request body and validates it before the controller
-method runs.
-
-### ItemsService — Business logic
-
-- `findAll()` — returns items ordered by `addedAt` descending
-- `create()` — catches Prisma `P2002` (unique constraint) and throws `ConflictException` (409)
-- `update()` — checks item exists first (404 if not), then updates
-- `remove()` — checks item exists first (404 if not), then deletes
-- `ensureExists()` — private helper, throws `NotFoundException` if the item doesn't exist
+Two tiers configured globally via `@nestjs/throttler`:
+- **Short:** 10 requests/second
+- **Medium:** 60 requests/minute
 
 ## Adding a new resource
 
-Each feature lives in its own folder. The pattern is always the same:
+Each feature lives in its own folder:
 
 1. **Model** — add to `prisma/schema.prisma`
 2. **Migrate** — `npx prisma migrate dev --name <label>`
-3. **DTOs** — `dto/create-<name>.dto.ts` and `dto/update-<name>.dto.ts`
-4. **Service** — talks to Prisma, contains business logic
-5. **Controller** — HTTP layer only, delegates to the service
-6. **Module** — wires controller + providers
+3. **DTOs** — create DTO files with `class-validator` decorators
+4. **Service** — business logic with Prisma queries
+5. **Controller** — HTTP layer, use `@Public()` for public routes
+6. **Module** — wire controller + providers
 7. **Register** — import in `app.module.ts`
-
-Copy `src/items/` as a starting template and rename inside.
 
 ## Environment
 
@@ -192,7 +205,7 @@ FRONTEND_URL="http://localhost:5173"
 JWT_SECRET="<generate-a-strong-random-key>"
 ```
 
-`JWT_SECRET` is required. Generate one with:
+Generate a `JWT_SECRET` with:
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
